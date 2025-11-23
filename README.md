@@ -4,6 +4,15 @@
 
 Dự án btl2_DB gồm hai phần chính: backend và frontend, hướng đến việc xây dựng một ứng dụng web sử dụng TypeScript, JavaScript, CSS và HTML. Toàn bộ mã nguồn được tổ chức rõ ràng nhằm tách biệt phần xử lý server (backend) và phần giao diện người dùng (frontend).
 
+## Web: http://localhost:3001/#
+
+Hiện tại phần login/xác thực xem như bỏ qua (hoặc ai rảnh thì code), còn route gõ tay, gồm
+- /#customer - Giao diện khách hàng
+
+- /#staff - Giao diện nhân viên
+
+- /#manager - Giao diện quản lý
+
 ## Cấu trúc thư mục
 
 - backend/
