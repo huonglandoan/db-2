@@ -41,7 +41,7 @@ Dự án btl2_DB gồm hai phần chính: backend và frontend, hướng đến 
    npm install
    node server.js
 
-   cd ../frontend
+   cd frontend
    npm install 
    npm run dev
    ```
