@@ -1,167 +1,159 @@
-CREATE DATABASE IF NOT EXISTS Fooddy;
+DROP DATABASE fooddy;
+CREATE DATABASE Fooddy;
 USE Fooddy;
 -- Bảng chi nhánh
 CREATE TABLE Branch (
     Branch_ID INT PRIMARY KEY,
-    Address VARCHAR(255),
-    Contact_number VARCHAR(20) CHECK (Contact_number REGEXP '^[0-9]{10}$'),
-    Opening_hours VARCHAR(100),
-    Branch_status VARCHAR(50),
-    Manager_ID_number CHAR(12) CHECK (Manager_ID_number REGEXP '^[0-9]{12}$')
+    Address VARCHAR(255) NOT NULL,
+    Contact_number VARCHAR(10) NOT NULL CHECK (Contact_number REGEXP '^[0-9]{10}$'),
+    Opening_hours VARCHAR(100) NOT NULL,
+    Branch_status ENUM('Active', 'Inactive', 'Closed') NOT NULL,
+    Manager_ID_number CHAR(12),
+    Manager_start_date DATE
 );
 -- Bảng người dùng
 CREATE TABLE User_fooddy (
     ID_number CHAR(12) PRIMARY KEY CHECK (ID_number REGEXP '^[0-9]{12}$'),
-    Full_name VARCHAR(100),
-    Date_of_birth DATE,
-    Unit VARCHAR(100),
-    Email VARCHAR(100),
+    Full_name VARCHAR(100) NOT NULL,
+    Date_of_birth DATE NOT NULL,
+    Unit VARCHAR(100) NOT NULL,
+    Email VARCHAR(100) NOT NULL UNIQUE,
     Position_fooddy VARCHAR(50),
-    Phone_number VARCHAR(10) CHECK (Phone_number REGEXP '^[0-9]{10}$'),
-    Registration_day DATE,
-    Account_status VARCHAR(50)
+    Phone_number VARCHAR(10) NOT NULL UNIQUE CHECK (Phone_number REGEXP '^[0-9]{10}$'),
+    Registration_day DATE NOT NULL,
+    Account_status ENUM('Normal', 'Suspended', 'Locked') DEFAULT 'Normal'
 );
 -- Bảng khách hàng
 CREATE TABLE Customer (
-    ID_number CHAR(12) PRIMARY KEY CHECK (ID_number REGEXP '^[0-9]{12}$'),
-    FOREIGN KEY (ID_number) REFERENCES User_fooddy(ID_number)
+    ID_number CHAR(12) PRIMARY KEY,
+    FOREIGN KEY (ID_number) REFERENCES User_fooddy(ID_number) ON DELETE CASCADE ON UPDATE CASCADE
 );
 -- Bảng nhân viên
 CREATE TABLE Staff (
-    ID_number CHAR(12) PRIMARY KEY CHECK (ID_number REGEXP '^[0-9]{12}$'),
-    Salary DECIMAL(10, 2) CHECK (Salary >= 0),
-    Shift_type VARCHAR(50),
-    Hire_date DATE,
-    Branch_ID INT,
+    ID_number CHAR(12) PRIMARY KEY,
+    Salary DECIMAL(10, 2) NOT NULL CHECK (Salary >= 0),
+    Hire_date DATE NOT NULL,
+    Branch_ID INT NOT NULL,
     Supervisior_ID_number CHAR(12),
-    FOREIGN KEY (ID_number) REFERENCES User_fooddy(ID_number),
-    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID)
+    FOREIGN KEY (Supervisior_ID_number) REFERENCES Staff(ID_number) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (ID_number) REFERENCES User_fooddy(ID_number) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID) ON DELETE CASCADE ON UPDATE CASCADE
+);
+ALTER TABLE Branch
+ADD FOREIGN KEY (Manager_ID_number) REFERENCES Staff(ID_number) ON DELETE
+SET NULL ON UPDATE CASCADE;
+CREATE TABLE Shift_type(
+    Shift ENUM('Morning', 'Afternoon', 'Evening'),
+    ID_number CHAR(12),
+    PRIMARY KEY(Shift, ID_number),
+    FOREIGN KEY (ID_number) REFERENCES Staff(ID_number)
 );
 -- Bảng ví
 CREATE TABLE Wallet (
-    Wallet_ID INT PRIMARY KEY,
-    Customer_ID_number CHAR(12) CHECK (Customer_ID_number REGEXP '^[0-9]{12}$'),
-    Balance DECIMAL(10, 2) CHECK (Balance >= 0),
-    Last_updated DATE,
-    FOREIGN KEY (Customer_ID_number) REFERENCES Customer(ID_number)
+    Wallet_ID CHAR(8) PRIMARY KEY CHECK (Wallet_ID REGEXP '^[0-9]{8}$'),
+    Customer_ID_number CHAR(12) NOT NULL,
+    Balance DECIMAL(10, 2) NOT NULL CHECK (Balance >= 0),
+    Last_updated DATETIME NOT NULL,
+    FOREIGN KEY (Customer_ID_number) REFERENCES Customer(ID_number) ON DELETE CASCADE ON UPDATE CASCADE
 );
 -- Bảng thanh toán
 CREATE TABLE Payment (
     Payment_ID INT PRIMARY KEY,
-    Wallet_ID INT,
-    Payment_type VARCHAR(50),
-    Method VARCHAR(50),
-    Time_stamp DATETIME,
-    Status_fooddy VARCHAR(50),
-    Amount DECIMAL(10, 2) CHECK (Amount >= 0),
-    FOREIGN KEY (Wallet_ID) REFERENCES Wallet(Wallet_ID)
+    Wallet_ID CHAR(8) NOT NULL,
+    Payment_type ENUM('Deposit', 'InternalTransfer', 'FoodPayment') NOT NULL,
+    -- Nạp tiền, chuyển nội bộ, thanh toán món ăn
+    Method ENUM('Banking', 'EWallet', 'VietQR') NOT NULL,
+    -- ATM/Banking, ví điện tử, VietQR
+    Time_stamp DATETIME NOT NULL,
+    Status_fooddy ENUM('Success', 'Failed', 'Processing') NOT NULL,
+    -- Thành công, thất bại, đang xử lý
+    Amount DECIMAL(10, 2) NOT NULL CHECK (Amount >= 0),
+    FOREIGN KEY (Wallet_ID) REFERENCES Wallet(Wallet_ID) ON DELETE CASCADE ON UPDATE CASCADE
 );
 -- Bảng voucher
 CREATE TABLE Voucher (
     Voucher_ID INT PRIMARY KEY,
-    Description_voucher VARCHAR(255),
-    Discount_value DECIMAL(5, 2) CHECK (
+    Description_voucher VARCHAR(255) NOT NULL,
+    Branch_ID INT NOT NULL,
+    Discount_value DECIMAL(5, 2) NOT NULL CHECK (
         Discount_value >= 0
-        AND Discount_value <= 100
+        AND Discount_value <= 50
     ),
-    Status_voucher VARCHAR(50),
-    Date_start DATE,
-    Date_end DATE,
-    Branch_ID INT,
-    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID),
-    CHECK (Date_end >= Date_start)
-);
--- Bảng quản lý chi nhánh
-CREATE TABLE Manage (
-    ID_number CHAR(12) CHECK (ID_number REGEXP '^[0-9]{12}$'),
-    Branch_ID INT,
-    Start_day DATE,
-    PRIMARY KEY (ID_number, Branch_ID),
-    FOREIGN KEY (ID_number) REFERENCES Staff(ID_number),
-    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID)
-);
--- Bảng thức ăn
-CREATE TABLE Food (
-    Food_ID VARCHAR(20) PRIMARY KEY,
-    Food_name VARCHAR(100) NOT NULL,
-    Description VARCHAR(500),
-    -- Bổ sung cột Description
-    Category VARCHAR(50) NOT NULL,
-    -- Đổi tên cột cho khớp với Frontend (Food_type -> Category)
-    Unit_price DECIMAL(10, 2) NOT NULL CHECK (Unit_price >= 0),
-    Image_URL VARCHAR(255),
-    -- Đổi tên cột cho rõ ràng hơn (Image -> Image_URL)
-    Status VARCHAR(50) DEFAULT 'Còn hàng'
-);
--- Bảng order
-CREATE TABLE Order_fooddy (
-    Order_ID INT PRIMARY KEY,
-    Customer_ID_number CHAR(12) CHECK (Customer_ID_number REGEXP '^[0-9]{12}$'),
-    Food_ID INT,
-    Log_ID INT,
-    Payment_ID INT,
-    Total_amount DECIMAL(10, 2) CHECK (Total_amount >= 0),
-    Pick_up_status VARCHAR(50),
-    QR_code VARCHAR(255),
-    Price DECIMAL(10, 2) CHECK (Price >= 0),
-    Quantity INT CHECK (Quantity > 0),
-    Voucher_ID INT,
-    Order_time DATETIME,
-    FOREIGN KEY (Customer_ID_number) REFERENCES Customer(ID_number),
-    FOREIGN KEY (Payment_ID) REFERENCES Payment(Payment_ID),
-    FOREIGN KEY (Voucher_ID) REFERENCES Voucher(Voucher_ID),
-    FOREIGN KEY (Food_ID) REFERENCES Food(Food_ID)
-);
--- Bảng transaction log
-CREATE TABLE Transaction_log (
-    Log_ID INT PRIMARY KEY,
-    Staff_ID_number CHAR(12) CHECK (Staff_ID_number REGEXP '^[0-9]{12}$'),
-    Action_time DATETIME,
-    Reason VARCHAR(255),
-    FOREIGN KEY (Staff_ID_number) REFERENCES Staff(ID_number)
+    Status_voucher ENUM('Active', 'Expired', 'Stopped') NOT NULL,
+    -- Còn hiệu lực, Hết hạn, Ngừng phát hành
+    Date_start DATE NOT NULL,
+    Date_end DATE NOT NULL,
+    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID) ON DELETE CASCADE ON UPDATE CASCADE
 );
 -- Bảng món ăn phục vụ
 CREATE TABLE ServedFood (
     Food_ID INT PRIMARY KEY,
-    FOREIGN KEY (Food_ID) REFERENCES Food(Food_ID)
+    Food_name VARCHAR(100) NOT NULL,
+    Unit_price DECIMAL(10, 2) NOT NULL CHECK (Unit_price >= 0),
+    Availability_status ENUM('Available', 'OutOfStock', 'Discontinued') DEFAULT 'Available',
+    Image VARCHAR(255),
+    Quantity INT NOT NULL DEFAULT 0 CHECK (Quantity >= 0),
+    Category VARCHAR(50) NOT NULL,
+    Branch_ID INT NOT NULL,
+    Batch_ID INT NOT NULL
 );
--- Bảng món ăn trong kho
-CREATE TABLE StockedFood (
-    Food_ID INT PRIMARY KEY,
-    Expiry_date DATE,
-    Manufacture_date DATE,
-    FOREIGN KEY (Food_ID) REFERENCES Food(Food_ID)
+-- Bảng order
+CREATE TABLE Order_fooddy (
+    Order_ID INT PRIMARY KEY,
+    Customer_ID_number CHAR(12) NOT NULL,
+    Food_ID INT NOT NULL,
+    Log_ID INT NOT NULL,
+    Payment_ID INT NOT NULL,
+    Branch_ID INT NOT NULL,
+    Pick_up_status ENUM('Pending', 'Picked', 'Cancelled') NOT NULL DEFAULT 'Pending',
+    QR_code VARCHAR(255),
+    Price DECIMAL(10, 2) NOT NULL CHECK (Price >= 0),
+    Quantity INT NOT NULL CHECK (Quantity > 0),
+    Voucher_ID INT,
+    Order_time DATETIME NOT NULL,
+    FOREIGN KEY (Food_ID) REFERENCES ServedFood(Food_ID),
+    FOREIGN KEY (Customer_ID_number) REFERENCES Customer(ID_number),
+    FOREIGN KEY (Payment_ID) REFERENCES Payment(Payment_ID),
+    FOREIGN KEY (Voucher_ID) REFERENCES Voucher(Voucher_ID),
+    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID)
+);
+-- Bảng transaction log
+CREATE TABLE Transaction_log (
+    Log_ID INT PRIMARY KEY,
+    Staff_ID_number CHAR(12) NOT NULL CHECK (Staff_ID_number REGEXP '^[0-9]{12}$'),
+    Action_time DATETIME NOT NULL,
+    FOREIGN KEY (Staff_ID_number) REFERENCES Staff(ID_number)
 );
 -- Bảng thành phần nguyên liệu
 CREATE TABLE Ingredient (
     Ingredient_ID INT PRIMARY KEY,
-    Ingredient_name VARCHAR(100),
-    Quantity INT CHECK (Quantity >= 0),
-    Description_fooddy VARCHAR(255),
-    Unit VARCHAR(50)
+    Ingredient_name VARCHAR(100) NOT NULL,
+    Quantity INT CHECK (Quantity >= 0) NOT NULL,
+    Description_fooddy VARCHAR(255) NOT NULL,
+    Unit VARCHAR(50) NOT NULL
 );
 -- Bảng công ty cung cấp
 CREATE TABLE Company (
     Company_ID INT PRIMARY KEY,
-    Company_name VARCHAR(100),
-    Email VARCHAR(100) CHECK (Email LIKE '%@%.%'),
-    Phone_number VARCHAR(20) CHECK (Phone_number REGEXP '^[0-9]{9,11}$')
+    Company_name VARCHAR(100) NOT NULL,
+    Email VARCHAR(100) CHECK (
+        Email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
+    ) NOT NULL,
+    Phone_number VARCHAR(20) CHECK (Phone_number REGEXP '^[0-9]{9,11}$') NOT NULL
 );
 -- Bảng batch (lô hàng)
 CREATE TABLE Batch (
     Batch_ID INT PRIMARY KEY,
-    Product_date DATE,
+    Production_date DATE NOT NULL,
     Batch_name VARCHAR(100),
-    Quantity INT CHECK (Quantity >= 0),
-    Recived_date DATE,
-    Cost DECIMAL(10, 2) CHECK (Cost >= 0),
-    Delivery_date DATE,
-    Company_ID INT,
-    Food_ID INT,
-    Branch_ID INT,
+    Quantity INT CHECK (Quantity >= 0) NOT NULL,
+    Recived_date DATE NOT NULL,
+    Cost DECIMAL(10, 2) CHECK (Cost >= 0) NOT NULL,
+    Delivery_date DATE NOT NULL,
+    Company_ID INT NOT NULL,
+    Branch_ID INT NOT NULL,
     FOREIGN KEY (Company_ID) REFERENCES Company(Company_ID),
-    FOREIGN KEY (Food_ID) REFERENCES Food(Food_ID),
-    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID)
+    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID) ON DELETE CASCADE ON UPDATE CASCADE
 );
 -- Bảng Contain (thành phần trong batch)
 CREATE TABLE Contain (
@@ -174,42 +166,152 @@ CREATE TABLE Contain (
 -- Bảng menu
 CREATE TABLE Menu (
     Branch_ID INT,
-    Shift VARCHAR(50) CHECK (Shift IN ('Morning', 'Afternoon', 'Evening')),
-    Date_menu DATE,
+    Shift ENUM('Morning', 'Afternoon', 'Evening') NOT NULL,
+    Date_menu DATE NOT NULL,
     PRIMARY KEY (Branch_ID, Shift, Date_menu),
-    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID)
+    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID) ON DELETE CASCADE ON UPDATE CASCADE
 );
 -- Bảng Has (chi nhánh có món ăn)
 CREATE TABLE Has (
-    Food_ID INT,
-    Branch_ID INT,
-    PRIMARY KEY (Food_ID, Branch_ID),
-    FOREIGN KEY (Food_ID) REFERENCES Food(Food_ID),
-    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID)
+    Food_ID INT NOT NULL,
+    Branch_ID INT NOT NULL,
+    Shift ENUM('Morning', 'Afternoon', 'Evening') NOT NULL,
+    Date_menu DATE NOT NULL,
+    PRIMARY KEY (Food_ID, Branch_ID, Shift, Date_menu),
+    FOREIGN KEY (Food_ID) REFERENCES ServedFood(Food_ID),
+    FOREIGN KEY (Branch_ID, Shift, Date_menu) REFERENCES Menu(Branch_ID, Shift, Date_menu) ON DELETE CASCADE ON UPDATE CASCADE
 );
--- Bảng áp dụng voucher
-CREATE TABLE ApplicableBranch (
-    Branch_ID INT,
-    Voucher_ID INT,
-    PRIMARY KEY (Branch_ID, Voucher_ID),
-    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID),
-    FOREIGN KEY (Voucher_ID) REFERENCES Voucher(Voucher_ID)
-);
-INSERT INTO Branch (
-        Branch_ID,
-        Address,
-        Contact_number,
-        Opening_hours,
-        Branch_status,
-        Manager_ID_number
-    )
+DELIMITER $$ CREATE TRIGGER trg_payment_before_insert BEFORE
+INSERT ON Payment FOR EACH ROW BEGIN
+DECLARE wallet_balance DECIMAL(10, 2);
+-- phải khai báo đầu tiên
+IF NEW.Payment_type = 'FoodPayment' THEN
+SELECT Balance INTO wallet_balance
+FROM Wallet
+WHERE Wallet_ID = NEW.Wallet_ID;
+IF wallet_balance IS NULL THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Wallet not found';
+END IF;
+IF wallet_balance < NEW.Amount THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Payment failed: insufficient wallet balance.';
+END IF;
+END IF;
+END $$ CREATE TRIGGER trg_payment_before_update BEFORE
+UPDATE ON Payment FOR EACH ROW BEGIN
+DECLARE wallet_balance DECIMAL(10, 2);
+IF NEW.Payment_type = 'FoodPayment' THEN
+SELECT Balance INTO wallet_balance
+FROM Wallet
+WHERE Wallet_ID = NEW.Wallet_ID;
+IF wallet_balance IS NULL THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Wallet not found';
+END IF;
+IF wallet_balance < NEW.Amount THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Update failed: insufficient wallet balance.';
+END IF;
+END IF;
+END $$ CREATE TRIGGER trg_deposit_limit BEFORE
+INSERT ON Payment FOR EACH ROW BEGIN -- Chỉ áp dụng cho giao dịch nạp tiền
+    IF NEW.Payment_type = 'Deposit' THEN IF NEW.Amount < 50000
+    OR NEW.Amount > 5000000 THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Deposit amount must be between 50,000 and 5,000,000 VND';
+END IF;
+END IF;
+END $$ CREATE TRIGGER trg_internal_transfer_limit BEFORE
+INSERT ON Payment FOR EACH ROW BEGIN -- Khai báo biến phải nằm ở đầu BEGIN
+DECLARE transfer_count INT;
+-- Chỉ áp dụng cho giao dịch chuyển tiền nội bộ
+IF NEW.Payment_type = 'InternalTransfer' THEN -- Kiểm tra số tiền hợp lệ
+IF NEW.Amount < 10000
+OR NEW.Amount > 2000000 THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Internal transfer amount must be between 10,000 and 2,000,000 VND';
+END IF;
+-- Kiểm tra số lần giao dịch trong ngày
+SELECT COUNT(*) INTO transfer_count
+FROM Payment
+WHERE Wallet_ID = NEW.Wallet_ID
+    AND Payment_type = 'InternalTransfer'
+    AND DATE(Time_stamp) = DATE(NEW.Time_stamp);
+IF transfer_count >= 5 THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Exceeded maximum 5 internal transfers per day';
+END IF;
+END IF;
+END $$ CREATE TRIGGER trg_order_before_insert BEFORE
+INSERT ON Order_fooddy FOR EACH ROW BEGIN
+DECLARE food_status ENUM('Available', 'OutOfStock', 'Discontinued');
+DECLARE branch_status ENUM('Active', 'Inactive', 'Closed');
+-- Lấy trạng thái món ăn
+SELECT Availability_status INTO food_status
+FROM ServedFood
+WHERE Food_ID = NEW.Food_ID;
+IF food_status = 'OutOfStock' THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Cannot create order: food is out of stock';
+END IF;
+-- Lấy trạng thái chi nhánh
+SELECT Branch_status INTO branch_status
+FROM Branch
+WHERE Branch_ID = NEW.Branch_ID;
+IF branch_status <> 'Active' THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Cannot create order: branch is not active';
+END IF;
+END $$ CREATE TRIGGER trg_order_quantity_limit BEFORE
+INSERT ON Order_fooddy FOR EACH ROW BEGIN IF NEW.Quantity > 20 THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Cannot create order: quantity of a single food cannot exceed 20';
+END IF;
+END $$ CREATE TRIGGER trg_voucher_duration_insert BEFORE
+INSERT ON Voucher FOR EACH ROW BEGIN IF DATEDIFF(NEW.Date_end, NEW.Date_start) > 30 THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Voucher duration cannot exceed 30 days';
+END IF;
+END $$ -- Trigger trước khi cập nhật voucher
+CREATE TRIGGER trg_voucher_duration_update BEFORE
+UPDATE ON Voucher FOR EACH ROW BEGIN IF DATEDIFF(NEW.Date_end, NEW.Date_start) > 30 THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Voucher duration cannot exceed 30 days';
+END IF;
+END $$ CREATE TRIGGER trg_shift_unique BEFORE
+INSERT ON Shift_type FOR EACH ROW BEGIN -- Kiểm tra nhân viên đã có ca làm việc cùng ca, cùng ngày hay chưa
+    IF EXISTS (
+        SELECT 1
+        FROM Shift_type s
+            JOIN Has h ON s.ID_number = NEW.ID_number
+        WHERE s.Shift = NEW.Shift -- Giả sử bảng Shift_type chỉ lưu ca, không lưu ngày; nếu có ngày thì thêm điều kiện ngày
+    ) THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Employee can only have one shift at one branch at a time';
+END IF;
+END $$ CREATE TRIGGER trg_manager_startdate BEFORE
+INSERT ON Staff FOR EACH ROW BEGIN
+DECLARE reg_date DATE;
+-- Lấy ngày đăng ký của nhân viên từ User_fooddy
+SELECT Registration_day INTO reg_date
+FROM User_fooddy
+WHERE ID_number = NEW.ID_number;
+IF NEW.Hire_date < reg_date THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'StartDate of manager must be >= RegistrationDate of employee';
+END IF;
+END $$ CREATE TRIGGER trg_check_staff_age BEFORE
+INSERT ON Staff FOR EACH ROW BEGIN
+DECLARE dob DATE;
+DECLARE age INT;
+-- Lấy ngày sinh của nhân viên từ User_fooddy
+SELECT Date_of_birth INTO dob
+FROM User_fooddy
+WHERE ID_number = NEW.ID_number;
+-- Tính tuổi dựa trên ngày hiện tại
+SET age = TIMESTAMPDIFF(YEAR, dob, CURDATE());
+IF age < 18
+OR age > 60 THEN SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'Employee age must be between 18 and 60 years';
+END IF;
+END $$ DELIMITER;
+SET FOREIGN_KEY_CHECKS = 0;
+INSERT INTO Branch
 VALUES (
         1,
         '123 Nguyễn Văn Cừ, Q5, HCM',
         '0901234567',
         '7:00-22:00',
         'Active',
-        '621133675424'
+        '621133675424',
+        '2000-01-10'
     ),
     (
         2,
@@ -217,7 +319,8 @@ VALUES (
         '0909876543',
         '8:00-21:00',
         'Active',
-        '621133675525'
+        '621133672159',
+        '2000-01-10'
     ),
     (
         3,
@@ -225,7 +328,8 @@ VALUES (
         '0911222333',
         '6:30-23:00',
         'Inactive',
-        '621133675727'
+        '621133672157',
+        '2000-01-10'
     ),
     (
         4,
@@ -233,7 +337,8 @@ VALUES (
         '0909876598',
         '8:00-21:00',
         'Active',
-        '621133675828'
+        '621133672160',
+        '2000-01-10'
     ),
     (
         5,
@@ -241,219 +346,657 @@ VALUES (
         '0909800011',
         '8:00-21:00',
         'Active',
-        '621133675929'
+        '621133672161',
+        '2000-01-10'
     );
-INSERT INTO User_fooddy (
-        ID_number,
-        Full_name,
-        Date_of_birth,
-        Unit,
-        Email,
-        Position_fooddy,
-        Phone_number,
-        Registration_day,
-        Account_status
-    )
+SET FOREIGN_KEY_CHECKS = 1;
+INSERT INTO User_fooddy
 VALUES (
-        '621133675121',
-        'Nguyễn Văn linh',
-        '2000-01-10',
-        'Customer',
-        'lindan@gmail.com',
-        'Customer',
-        '0901234567',
-        '2024-03-01',
-        'Active'
-    ),
-    (
-        '621133675222',
-        'Trần Thị Hà Linh',
-        '1999-05-20',
-        'Customer',
-        'linlin11@gmail.com',
-        'Customer',
-        '0902234567',
-        '2024-03-01',
-        'Active'
-    ),
-    (
-        '621133675323',
-        'Lê Văn Quân',
-        '2002-08-30',
-        'Customer',
-        'minwuan11111@gmail.com',
-        'Customer',
-        '0903234567',
-        '2024-03-02',
-        'Active'
-    ),
-    (
-        '621133672424',
-        'Tạ Quang Quân',
-        '2008-08-31',
-        'Customer',
-        'quangquan2008@gmail.com',
-        'Customer',
-        '0903235436',
-        '2024-03-02',
-        'Active'
-    ),
-    (
-        '621133672355',
-        'Nguyên Long Hưng',
-        '2006-02-27',
-        'Customer',
-        'lonhungg@gmail.com',
-        'Customer',
-        '0903237694',
-        '2024-03-02',
-        'Active'
-    ),
-    (
-        '621133675424',
+        '621133672156',
         'Nguyễn Minh Tín',
         '1990-03-15',
-        'Sales',
+        'BK1',
         'minhtin123@fooddy.vn',
         'Manager',
-        '0901111111',
+        '0901141111',
         '2024-01-01',
-        'Active'
+        'Normal'
     ),
     (
-        '621133675525',
+        '621133672157',
         'Trần Thị Huyền',
         '1995-05-22',
-        'HR',
+        'BK2',
         'huenaaa1@fooddy.vn',
         'Manager',
-        '0902222222',
+        '0902225622',
         '2024-02-01',
-        'Active'
+        'Normal'
     ),
     (
-        '621133675626',
-        'Lê Nguyễn Minh Thư',
-        '1998-09-10',
-        'Kitchen',
-        'minthu910@fooddy.vn',
-        'Staff',
-        '0903333333',
-        '2024-03-01',
-        'Active'
-    ),
-    (
-        '621133675727',
+        '621133672159',
         'Nguyễn Minh Tạ',
         '2005-03-19',
-        'Manager',
+        'USSH1',
         'minhtatata@fooddy.vn',
         'Manager',
-        '0901111111',
+        '0901471111',
         '2024-01-01',
-        'Active'
+        'Normal'
     ),
     (
-        '621133675828',
+        '621133672160',
         'Trần Lê Hà Yến',
         '2004-08-11',
-        'Manager',
+        'USSH2',
         'yenleha123456@fooddy.vn',
         'Manager',
-        '0902222222',
+        '0907142222',
         '2024-02-01',
-        'Active'
+        'Normal'
     ),
     (
-        '621133675929',
+        '621133672161',
         'Hồ Ngọc Hà',
         '2001-09-10',
-        'Manager',
+        'UIT',
         'hahaha123@fooddy.vn',
         'Manager',
         '0903333333',
         '2024-03-01',
-        'Active'
+        'Normal'
+    ),
+    -- 20 STAFF (không phải manager)
+    (
+        '621133672158',
+        'Lê Nguyễn Minh Thư',
+        '1998-09-10',
+        'BK1',
+        'minthu910@fooddy.vn',
+        'Staff',
+        '0908943333',
+        '2024-03-01',
+        'Normal'
+    ),
+    (
+        '621133672200',
+        'Phạm Quốc Hưng',
+        '1998-04-12',
+        'BK1',
+        'hunghp01@fooddy.vn',
+        'Staff',
+        '0904444441',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672201',
+        'Nguyễn Minh Khải',
+        '1999-07-19',
+        'BK1',
+        'khainguyen99@fooddy.vn',
+        'Staff',
+        '0904444442',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672202',
+        'Trần Bảo Long',
+        '2000-02-10',
+        'BK1',
+        'longbao2000@fooddy.vn',
+        'Staff',
+        '0904444443',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672203',
+        'Lê Thanh Tùng',
+        '1997-10-05',
+        'BK1',
+        'tungle97@fooddy.vn',
+        'Staff',
+        '0904444444',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672204',
+        'Huỳnh Nhật Tân',
+        '2001-12-01',
+        'BK2',
+        'tanhuynh01@fooddy.vn',
+        'Staff',
+        '0904444445',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672205',
+        'Đỗ Triệu Dương',
+        '1996-03-14',
+        'BK2',
+        'duongtrieu96@fooddy.vn',
+        'Staff',
+        '0904444446',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672206',
+        'Nguyễn Hải Đăng',
+        '1995-11-21',
+        'BK2',
+        'dangnguyen95@fooddy.vn',
+        'Staff',
+        '0904444447',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672207',
+        'Phan Nhật Nam',
+        '2002-09-02',
+        'BK2',
+        'namphan02@fooddy.vn',
+        'Staff',
+        '0904444448',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672208',
+        'Bùi Võ Thiên',
+        '1994-07-30',
+        'BK2',
+        'thienbuiv@fooddy.vn',
+        'Staff',
+        '0904444449',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672209',
+        'Lâm Hoàng Khang',
+        '1993-01-22',
+        'USSH1',
+        'khanglam93@fooddy.vn',
+        'Staff',
+        '0904444450',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672210',
+        'Hồ Đức Huy',
+        '2000-05-18',
+        'USSH1',
+        'huyhdd@fooddy.vn',
+        'Staff',
+        '0904444451',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672211',
+        'Đặng Xuân Sang',
+        '1999-02-25',
+        'USSH1',
+        'sangdx@fooddy.vn',
+        'Staff',
+        '0904444452',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672212',
+        'Nguyễn Quang Hiếu',
+        '2001-09-12',
+        'USSH1',
+        'hieuquang01@fooddy.vn',
+        'Staff',
+        '0904444453',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672213',
+        'Trương Tấn Tài',
+        '1997-11-07',
+        'USSH1',
+        'taitruong97@fooddy.vn',
+        'Staff',
+        '0904444454',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672214',
+        'Võ Trung Dũng',
+        '1998-03-09',
+        'USSH2',
+        'dungvo98@fooddy.vn',
+        'Staff',
+        '0904444455',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672215',
+        'Nguyễn Nhật Quang',
+        '1996-06-10',
+        'USSH2',
+        'quangnn96@fooddy.vn',
+        'Staff',
+        '0904444456',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672216',
+        'Phạm Đức Hoàng',
+        '1995-01-29',
+        'USSH2 Service',
+        'hoangpd95@fooddy.vn',
+        'Staff',
+        '0904444457',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672217',
+        'Châu Tấn Lợi',
+        '2003-02-14',
+        'USSH2',
+        'loitanchau@fooddy.vn',
+        'Staff',
+        '0904444458',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672218',
+        'Nguyễn Hữu Phúc',
+        '1994-09-10',
+        'UIT',
+        'phuchn94@fooddy.vn',
+        'Staff',
+        '0904444459',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672219',
+        'Trần Quang Minh',
+        '2002-04-03',
+        'UIT',
+        'minhquang02@fooddy.vn',
+        'Staff',
+        '0904444460',
+        '2024-03-05',
+        'Normal'
+    ),
+    (
+        '621133672222',
+        'Trần Hoài Bảo',
+        '1998-08-09',
+        'UIT',
+        'baotran98@fooddy.vn',
+        'Staff',
+        '0905555553',
+        '2024-03-06',
+        'Normal'
+    ),
+    (
+        '621133672223',
+        'Nguyễn Mai Linh',
+        '1997-02-17',
+        'UIT',
+        'linhmailinh@fooddy.vn',
+        'Staff',
+        '0905555554',
+        '2024-03-06',
+        'Normal'
+    ),
+    -- 5 người khác (KHÔNG phải Manager)
+    (
+        '621133675121',
+        'Nguyễn Văn Linh',
+        '2000-01-10',
+        'BK1',
+        'lindan@gmail.com',
+        'Customer',
+        '0901234567',
+        '2024-03-01',
+        'Normal'
+    ),
+    (
+        '621133675122',
+        'Trần Thị Hà Linh',
+        '1999-05-20',
+        'BK1',
+        'linlin11@gmail.com',
+        'Customer',
+        '0902234567',
+        '2024-03-01',
+        'Normal'
+    ),
+    (
+        '621133675123',
+        'Lê Văn Quân',
+        '2002-08-30',
+        'BK2',
+        'minwuan11111@gmail.com',
+        'Customer',
+        '0903234567',
+        '2024-03-02',
+        'Normal'
+    ),
+    (
+        '621133672124',
+        'Tạ Quang Quân',
+        '2008-08-31',
+        'BK2',
+        'quangquan2008@gmail.com',
+        'Customer',
+        '0903235436',
+        '2024-03-02',
+        'Normal'
+    ),
+    (
+        '621133672155',
+        'Nguyên Long Hưng',
+        '2006-02-27',
+        'USSH1',
+        'lonhungg@gmail.com',
+        'Customer',
+        '0903237694',
+        '2024-03-02',
+        'Normal'
+    ),
+    (
+        '621133672220',
+        'Hồ Phước An',
+        '2004-05-12',
+        'USSH2',
+        'anhophuoc@gmail.com',
+        'Customer',
+        '0905555551',
+        '2024-03-06',
+        'Normal'
+    ),
+    (
+        '621133672221',
+        'Lê Mỹ Duyên',
+        '2001-12-20',
+        'UIT',
+        'myduyen01@gmail.com',
+        'Customer',
+        '0905555552',
+        '2024-03-06',
+        'Normal'
+    ),
+    (
+        '621133672224',
+        'Vũ Gia Hân',
+        '2003-11-28',
+        'UIT',
+        'giahanvu@gmail.com',
+        'Customer',
+        '0905555555',
+        '2024-03-06',
+        'Normal'
     );
 INSERT INTO Staff (
         ID_number,
         Salary,
-        Shift_type,
         Hire_date,
         Branch_ID,
         Supervisior_ID_number
     )
-VALUES (
-        '621133675424',
-        20000000,
-        'Full-time',
-        '2023-01-10',
+VALUES -- Managers (không có supervisor)
+    ('621133672156', 12000000, '2024-01-01', 1, NULL),
+    -- BK1 Manager
+    ('621133672157', 12000000, '2024-02-01', 2, NULL),
+    -- BK2 Manager
+    ('621133672159', 12000000, '2024-01-01', 3, NULL),
+    -- USSH1 Manager
+    ('621133672160', 12000000, '2024-02-01', 4, NULL),
+    -- USSH2 Manager
+    ('621133672161', 12000000, '2024-03-01', 5, NULL),
+    -- UIT Manager
+    -- Staff BK1
+    (
+        '621133672158',
+        8000000,
+        '2024-03-01',
         1,
-        NULL
+        '621133672156'
     ),
     (
-        '621133675525',
-        15000000,
-        'Full-time',
-        '2023-03-15',
+        '621133672200',
+        7500000,
+        '2024-03-05',
+        1,
+        '621133672156'
+    ),
+    (
+        '621133672201',
+        7200000,
+        '2024-03-05',
+        1,
+        '621133672156'
+    ),
+    (
+        '621133672202',
+        7700000,
+        '2024-03-05',
+        1,
+        '621133672156'
+    ),
+    (
+        '621133672203',
+        7000000,
+        '2024-03-05',
+        1,
+        '621133672156'
+    ),
+    -- Staff BK2
+    (
+        '621133672204',
+        6800000,
+        '2024-03-05',
         2,
-        '621133675626'
+        '621133672157'
     ),
     (
-        '621133675626',
-        12000000,
-        'Part-time',
-        '2023-06-05',
+        '621133672205',
+        7200000,
+        '2024-03-05',
+        2,
+        '621133672157'
+    ),
+    (
+        '621133672206',
+        8000000,
+        '2024-03-05',
+        2,
+        '621133672157'
+    ),
+    (
+        '621133672207',
+        7500000,
+        '2024-03-05',
+        2,
+        '621133672157'
+    ),
+    (
+        '621133672208',
+        7700000,
+        '2024-03-05',
+        2,
+        '621133672157'
+    ),
+    -- Staff USSH1
+    (
+        '621133672209',
+        7200000,
+        '2024-03-05',
         3,
-        '621133675424'
+        '621133672159'
     ),
     (
-        '621133675727',
-        12000000,
-        'Full-time',
-        '2023-07-01',
+        '621133672210',
+        7800000,
+        '2024-03-05',
         3,
-        '621133675929'
+        '621133672159'
     ),
     (
-        '621133675828',
-        12000000,
-        'Full-time',
-        '2023-11-29',
+        '621133672211',
+        7400000,
+        '2024-03-05',
+        3,
+        '621133672159'
+    ),
+    (
+        '621133672212',
+        7600000,
+        '2024-03-05',
+        3,
+        '621133672159'
+    ),
+    (
+        '621133672213',
+        7300000,
+        '2024-03-05',
+        3,
+        '621133672159'
+    ),
+    -- Staff USSH2
+    (
+        '621133672214',
+        7500000,
+        '2024-03-05',
         4,
-        '621133675525'
+        '621133672160'
     ),
     (
-        '621133675929',
-        12000000,
-        'Full-time',
-        '2024-03-02',
+        '621133672215',
+        7100000,
+        '2024-03-05',
+        4,
+        '621133672160'
+    ),
+    (
+        '621133672216',
+        7200000,
+        '2024-03-05',
+        4,
+        '621133672160'
+    ),
+    (
+        '621133672217',
+        7400000,
+        '2024-03-05',
+        4,
+        '621133672160'
+    ),
+    -- Staff UIT
+    (
+        '621133672218',
+        7600000,
+        '2024-03-05',
         5,
-        '621133675828'
+        '621133672161'
+    ),
+    (
+        '621133672219',
+        7800000,
+        '2024-03-05',
+        5,
+        '621133672161'
+    ),
+    (
+        '621133672222',
+        7200000,
+        '2024-03-06',
+        5,
+        '621133672161'
+    ),
+    (
+        '621133672223',
+        7500000,
+        '2024-03-06',
+        5,
+        '621133672161'
     );
 INSERT INTO Customer (ID_number)
 VALUES ('621133675121'),
-    ('621133675222'),
-    ('621133675323'),
-    ('621133672424'),
-    ('621133672355');
-INSERT INTO Manage (ID_number, Start_day, Branch_ID)
-VALUES ('621133675424', '2024-02-10', 1),
-    ('621133675727', '2024-05-15', 3),
-    ('621133675828', '2024-08-01', 4),
-    ('621133675929', '2024-08-01', 5),
-    ('621133675525', '2024-08-01', 2);
+    ('621133675122'),
+    ('621133675123'),
+    ('621133672124'),
+    ('621133672155'),
+    ('621133672220'),
+    ('621133672221'),
+    ('621133672224');
 INSERT INTO Wallet (
         Wallet_ID,
         Customer_ID_number,
         Balance,
         Last_updated
     )
-VALUES (40000123, '621133675121', 500000, '2025-01-10'),
-    (40232025, '621133675222', 250000, '2025-02-20'),
-    (40236547, '621133675323', 1000000, '2025-04-12'),
-    (40231527, '621133672424', 1809000, '2025-12-25'),
-    (40976347, '621133672355', 1520000, '2025-02-15');
+VALUES (
+        '00000001',
+        '621133675121',
+        500000,
+        '2025-11-24 09:00:00'
+    ),
+    (
+        '00000002',
+        '621133675122',
+        500000,
+        '2025-11-23 15:30:00'
+    ),
+    (
+        '00000003',
+        '621133675123',
+        500000,
+        '2025-11-22 12:15:00'
+    ),
+    (
+        '00000004',
+        '621133672124',
+        200000,
+        '2025-11-21 18:45:00'
+    ),
+    (
+        '00000005',
+        '621133672155',
+        505000,
+        '2025-11-20 08:20:00'
+    ),
+    (
+        '00000006',
+        '621133672220',
+        520000,
+        '2025-11-19 14:10:00'
+    ),
+    (
+        '00000007',
+        '621133672221',
+        530000,
+        '2025-11-18 11:05:00'
+    ),
+    (
+        '00000008',
+        '621133672224',
+        590000,
+        '2025-11-17 20:30:00'
+    );
+-- Chèn dữ liệu Payment hợp lệ
 INSERT INTO Payment (
         Payment_ID,
         Wallet_ID,
@@ -464,49 +1007,98 @@ INSERT INTO Payment (
         Amount
     )
 VALUES (
+        1,
+        '00000001',
+        'Deposit',
+        'Banking',
+        '2025-11-20 09:00:00',
+        'Success',
+        500000.00
+    ),
+    (
+        2,
+        '00000002',
+        'FoodPayment',
+        'EWallet',
+        '2025-11-21 12:30:00',
+        'Processing',
+        100000.00
+    ),
+    -- ≤ 500000
+    (
+        3,
+        '00000003',
+        'Deposit',
+        'VietQR',
+        '2025-11-22 15:45:00',
+        'Success',
+        300000.00
+    ),
+    (
+        4,
+        '00000004',
+        'InternalTransfer',
+        'Banking',
+        '2025-11-23 10:15:00',
+        'Success',
+        100000.00
+    ),
+    (
+        5,
+        '00000005',
+        'FoodPayment',
+        'EWallet',
+        '2025-11-23 18:00:00',
+        'Success',
+        75000.00
+    ),
+    -- ≤ 500000
+    (
+        6,
+        '00000006',
+        'Deposit',
+        'Banking',
+        '2025-11-24 08:20:00',
+        'Success',
+        200000.00
+    ),
+    (
+        7,
+        '00000007',
+        'FoodPayment',
+        'VietQR',
+        '2025-11-24 11:10:00',
+        'Processing',
+        50000.00
+    ),
+    -- ≤ 500000
+    (
+        8,
+        '00000008',
+        'InternalTransfer',
+        'EWallet',
+        '2025-11-24 14:50:00',
+        'Failed',
+        90000.00
+    ),
+    (
+        9,
+        '00000001',
+        'FoodPayment',
+        'VietQR',
+        '2025-11-24 16:30:00',
+        'Success',
+        150000.00
+    ),
+    -- ≤ 500000
+    (
         10,
-        40000123,
-        'Online',
-        'Credit Card',
-        '2025-10-27 09:00:00',
-        'Completed',
-        150000
-    ),
-    (
-        11,
-        40232025,
-        'Offline',
-        'Cash',
-        '2025-10-27 10:30:00',
-        'Completed',
-        80000
-    ),
-    (
-        12,
-        40236547,
-        'Online',
-        'Momo',
-        '2025-10-28 11:00:00',
-        'Pending',
-        120000
-    ),
-    (
-        13,
-        40231527,
-        'Offline',
-        'Cash',
-        '2025-10-27 10:30:00',
-        'Completed',
-        80000
-    ),
-    (
-        14,
-        40976347,
-        'Offline',
-        'Cash',
-        '2025-10-27 10:30:00',
-        'Completed',
-        80000
+        '00000002',
+        'Deposit',
+        'Banking',
+        '2025-11-24 17:45:00',
+        'Success',
+        300000.00
     );
 INSERT INTO Voucher (
         Voucher_ID,
@@ -522,8 +1114,8 @@ VALUES (
         'Giảm 10% đơn hàng trên 100k',
         10,
         'Active',
-        '2025-10-01',
-        '2025-12-31',
+        '2025-10-05',
+        '2025-10-31',
         1
     ),
     (
@@ -531,7 +1123,7 @@ VALUES (
         'Giảm 20% cho thành viên mới',
         20,
         'Active',
-        '2025-09-01',
+        '2025-11-01',
         '2025-11-30',
         2
     ),
@@ -540,8 +1132,8 @@ VALUES (
         'Tặng nước khi mua combo',
         0,
         'Expired',
-        '2025-05-01',
-        '2025-08-01',
+        '2025-05-15',
+        '2025-06-01',
         3
     ),
     (
@@ -550,7 +1142,7 @@ VALUES (
         0,
         'Active',
         '2025-05-01',
-        '2025-12-01',
+        '2025-05-15',
         4
     ),
     (
@@ -558,63 +1150,240 @@ VALUES (
         'Giảm 50% cho đơn hàng',
         50,
         'Expired',
-        '2025-05-01',
-        '2025-08-01',
+        '2025-06-01',
+        '2025-06-21',
         5
     );
-INSERT INTO Food (
+INSERT INTO ServedFood (
         Food_ID,
         Food_name,
-        Description,
-        Category,
         Unit_price,
-        Image_URL,
-        Status
+        Availability_status,
+        Image,
+        Quantity,
+        Category,
+        Branch_ID,
+        Batch_ID
     )
 VALUES (
-        '101',
-        'Bánh mì thịt',
-        'Bánh mì kẹp thịt nóng',
-        'Fast food',
-        25000,
-        'banhmi.jpg',
-        'Còn hàng'
+        1,
+        'Phở Bò',
+        50000.00,
+        'Available',
+        'image/pho_bo.png',
+        50,
+        'Vietnamese',
+        1,
+        101
     ),
     (
-        '102',
-        'Phở bò',
-        'Phở bò truyền thống',
-        'Noodle',
-        45000,
-        'pho.jpg',
-        'Còn hàng'
+        2,
+        'Bún Chả',
+        45000.00,
+        'Available',
+        'bun_cha.jpg',
+        30,
+        'Vietnamese',
+        1,
+        101
     ),
     (
-        '103',
-        'Cơm tấm sườn',
-        'Cơm tấm sườn thơm ngon',
-        'Rice',
-        40000,
-        'comtam.jpg',
-        'Còn hàng'
+        3,
+        'Cơm Tấm',
+        40000.00,
+        'Available',
+        'com_tam.jpg',
+        40,
+        'Vietnamese',
+        1,
+        102
     ),
     (
-        '104',
-        'Pepsi',
-        'Nước giải khát',
-        'Drink',
-        10000,
-        'pepsi.jpg',
-        'Còn hàng'
+        4,
+        'Gỏi Cuốn',
+        30000.00,
+        'Available',
+        'goi_cuon.jpg',
+        60,
+        'Vietnamese',
+        1,
+        102
     ),
     (
-        '105',
-        'Bún bò',
-        'Bún bò Huế',
-        'Noodle',
-        40000,
-        'bunbo.jpg',
-        'Còn hàng'
+        5,
+        'Bánh Mì',
+        25000.00,
+        'OutOfStock',
+        'banh_mi.jpg',
+        0,
+        'Vietnamese',
+        1,
+        103
+    ),
+    (
+        6,
+        'Phở Gà',
+        48000.00,
+        'Available',
+        'pho_ga.jpg',
+        35,
+        'Vietnamese',
+        2,
+        104
+    ),
+    (
+        7,
+        'Bánh Xèo',
+        55000.00,
+        'Available',
+        'banh_xeo.jpg',
+        25,
+        'Vietnamese',
+        2,
+        104
+    ),
+    (
+        8,
+        'Mì Quảng',
+        60000.00,
+        'Available',
+        'mi_quang.jpg',
+        20,
+        'Vietnamese',
+        2,
+        105
+    ),
+    (
+        9,
+        'Cháo Gà',
+        35000.00,
+        'Available',
+        'chao_ga.jpg',
+        45,
+        'Vietnamese',
+        2,
+        105
+    ),
+    (
+        10,
+        'Bún Bò Huế',
+        65000.00,
+        'Available',
+        'bun_bo_hue.jpg',
+        30,
+        'Vietnamese',
+        2,
+        106
+    ),
+    (
+        11,
+        'Sushi Set',
+        120000.00,
+        'Available',
+        'sushi_set.jpg',
+        15,
+        'Japanese',
+        3,
+        107
+    ),
+    (
+        12,
+        'Ramen',
+        95000.00,
+        'Available',
+        'ramen.jpg',
+        20,
+        'Japanese',
+        3,
+        107
+    ),
+    (
+        13,
+        'Tempura',
+        80000.00,
+        'OutOfStock',
+        'tempura.jpg',
+        0,
+        'Japanese',
+        3,
+        108
+    ),
+    (
+        14,
+        'Cơm Sushi',
+        90000.00,
+        'Available',
+        'com_sushi.jpg',
+        25,
+        'Japanese',
+        3,
+        108
+    ),
+    (
+        15,
+        'Pizza Margherita',
+        150000.00,
+        'Available',
+        'pizza_margherita.jpg',
+        10,
+        'Italian',
+        4,
+        109
+    ),
+    (
+        16,
+        'Spaghetti Bolognese',
+        130000.00,
+        'Available',
+        'spaghetti.jpg',
+        12,
+        'Italian',
+        4,
+        109
+    ),
+    (
+        17,
+        'Lasagna',
+        140000.00,
+        'Available',
+        'lasagna.jpg',
+        8,
+        'Italian',
+        4,
+        110
+    ),
+    (
+        18,
+        'Risotto',
+        135000.00,
+        'Available',
+        'risotto.jpg',
+        7,
+        'Italian',
+        4,
+        110
+    ),
+    (
+        19,
+        'Tiramisu',
+        70000.00,
+        'Available',
+        'tiramisu.jpg',
+        20,
+        'Dessert',
+        4,
+        111
+    ),
+    (
+        20,
+        'Panna Cotta',
+        65000.00,
+        'Available',
+        'panna_cotta.jpg',
+        18,
+        'Dessert',
+        4,
+        111
     );
 INSERT INTO Order_fooddy (
         Order_ID,
@@ -622,7 +1391,7 @@ INSERT INTO Order_fooddy (
         Food_ID,
         Log_ID,
         Payment_ID,
-        Total_amount,
+        Branch_ID,
         Pick_up_status,
         QR_code,
         Price,
@@ -631,222 +1400,156 @@ INSERT INTO Order_fooddy (
         Order_time
     )
 VALUES (
-        9001,
+        1,
         '621133675121',
+        1,
         101,
-        301,
-        10,
-        22500,
+        1,
+        1,
+        'Pending',
+        'QR0001',
+        50000.00,
+        1,
+        NULL,
+        '2025-11-24 09:10:00'
+    ),
+    (
+        2,
+        '621133675122',
+        2,
+        102,
+        2,
+        1,
         'Picked',
-        'QR9001',
-        25000,
-        1,
-        501,
-        '2025-10-27 12:00:00'
+        'QR0002',
+        45000.00,
+        2,
+        NULL,
+        '2025-11-23 16:00:00'
     ),
     (
-        9002,
-        '621133675222',
-        102,
-        302,
+        3,
+        '621133675123',
+        3,
+        103,
+        3,
+        1,
+        'Cancelled',
+        'QR0003',
+        40000.00,
+        1,
+        NULL,
+        '2025-11-22 12:30:00'
+    ),
+    (
+        4,
+        '621133672124',
+        4,
+        104,
+        4,
+        2,
+        'Pending',
+        'QR0004',
+        30000.00,
+        2,
+        NULL,
+        '2025-11-21 19:00:00'
+    ),
+    (
+        5,
+        '621133672155',
+        6,
+        105,
+        5,
+        2,
+        'Picked',
+        'QR0005',
+        48000.00,
+        1,
+        NULL,
+        '2025-11-20 08:45:00'
+    ),
+    (
+        6,
+        '621133672220',
         11,
-        36000,
-        'Delivering',
-        'QR9002',
-        45000,
+        106,
+        6,
+        3,
+        'Pending',
+        'QR0006',
+        120000.00,
         1,
-        502,
-        '2025-10-27 13:00:00'
+        NULL,
+        '2025-11-19 14:30:00'
     ),
     (
-        9003,
-        '621133675323',
-        103,
-        303,
+        7,
+        '621133672221',
         12,
-        40000,
-        'Preparing',
-        'QR9003',
-        40000,
+        107,
+        7,
+        3,
+        'Picked',
+        'QR0007',
+        95000.00,
         1,
         NULL,
-        '2025-10-28 14:00:00'
+        '2025-11-18 11:20:00'
     ),
     (
-        9004,
-        '621133672424',
-        104,
-        304,
-        13,
-        40000,
-        'Preparing',
-        'QR9003',
-        40000,
+        8,
+        '621133672224',
+        15,
+        108,
+        8,
+        4,
+        'Pending',
+        'QR0008',
+        150000.00,
         1,
         NULL,
-        '2025-10-28 14:00:00'
+        '2025-11-17 21:00:00'
     ),
     (
-        9005,
-        '621133672355',
-        105,
-        305,
-        14,
-        40000,
-        'Preparing',
-        'QR9003',
-        40000,
+        9,
+        '621133675121',
+        16,
+        109,
+        1,
+        4,
+        'Picked',
+        'QR0009',
+        130000.00,
         1,
         NULL,
-        '2025-10-28 14:00:00'
+        '2025-11-16 13:15:00'
+    ),
+    (
+        10,
+        '621133675122',
+        17,
+        110,
+        2,
+        4,
+        'Pending',
+        'QR0010',
+        140000.00,
+        1,
+        NULL,
+        '2025-11-15 17:45:00'
     );
-INSERT INTO Transaction_log (Log_ID, Staff_ID_number, Action_time, Reason)
-VALUES (
-        301,
-        '621133675424',
-        '2025-10-27 12:10:00',
-        'Hoàn tất thanh toán'
-    ),
-    (
-        302,
-        '621133675525',
-        '2025-10-27 13:10:00',
-        'Đang giao hàng'
-    ),
-    (
-        303,
-        '621133675626',
-        '2025-10-28 14:15:00',
-        'Đang chuẩn bị'
-    ),
-    (
-        304,
-        '621133675828',
-        '2025-10-28 15:10:00',
-        'Hoàn tất thanh toán'
-    ),
-    (
-        305,
-        '621133675929',
-        '2025-10-29 20:10:00',
-        'Hoàn tất thanh toán'
-    );
-INSERT INTO ApplicableBranch (Branch_ID, Voucher_ID)
-VALUES (1, 501),
-    (2, 502),
-    (3, 503),
-    (4, 503),
-    (5, 503);
-INSERT INTO Menu (Branch_ID, Shift, Date_menu)
-VALUES (1, 'Morning', '2025-10-28'),
-    (2, 'Evening', '2025-10-28'),
-    (3, 'Afternoon', '2025-10-28'),
-    (4, 'Afternoon', '2025-10-28'),
-    (5, 'Afternoon', '2025-10-28'),
-    (2, 'Morning', '2025-10-28'),
-    (1, 'Afternoon', '2025-10-28'),
-    (3, 'Evening', '2025-10-28');
-INSERT INTO Has (Food_ID, Branch_ID)
-VALUES (101, 1),
-    (102, 2),
-    (103, 3),
-    (102, 3),
-    (103, 2);
-INSERT INTO Company (Company_ID, Company_name, Email, Phone_number)
-VALUES (901, 'Công ty FvF', 'info@fvf.vn', '028999888'),
-    (
-        902,
-        'Công ty NNN',
-        'contact@NNN.vn',
-        '028888777'
-    ),
-    (903, 'Công ty UYU', 'sales@uyu.vn', '028777666'),
-    (904, 'Công ty IUI', 'sales@IuI.vn', '028742466'),
-    (905, 'Công ty CDC', 'sales@CDC.vn', '0287434534');
-INSERT INTO Batch (
-        Batch_ID,
-        Product_date,
-        Batch_name,
-        Quantity,
-        Recived_date,
-        Cost,
-        Delivery_date,
-        Company_ID,
-        Food_ID,
-        Branch_ID
-    )
-VALUES (
-        701,
-        '2025-10-01',
-        'Lô bánh mì A',
-        100,
-        '2025-10-02',
-        2000000,
-        '2025-10-03',
-        901,
-        101,
-        1
-    ),
-    (
-        702,
-        '2025-09-28',
-        'Lô phở B',
-        80,
-        '2025-09-29',
-        2500000,
-        '2025-09-30',
-        902,
-        102,
-        2
-    ),
-    (
-        703,
-        '2025-10-05',
-        'Lô cơm tấm C',
-        120,
-        '2025-10-06',
-        3000000,
-        '2025-10-07',
-        903,
-        103,
-        3
-    ),
-    (
-        704,
-        '2025-10-05',
-        'Lô bún bò',
-        120,
-        '2025-10-06',
-        3000000,
-        '2025-10-07',
-        904,
-        105,
-        4
-    ),
-    (
-        705,
-        '2025-10-05',
-        'Lô pepsi',
-        120,
-        '2025-10-06',
-        3000000,
-        '2025-10-07',
-        905,
-        104,
-        5
-    );
-INSERT INTO ServedFood (Food_ID)
-VALUES (101),
-    (102),
-    (103),
-    (104),
-    (105);
-INSERT INTO StockedFood (Food_ID, Expiry_date, Manufacture_date)
-VALUES (101, '2025-12-30', '2025-10-01'),
-    (102, '2025-12-15', '2025-09-28'),
-    (103, '2025-12-25', '2025-10-05'),
-    (104, '2025-12-15', '2025-09-28'),
-    (105, '2025-12-15', '2025-09-28');
+INSERT INTO Transaction_log (Log_ID, Staff_ID_number, Action_time)
+VALUES (101, '621133672158', '2025-11-01 08:15:00'),
+    (102, '621133672200', '2025-11-02 09:30:00'),
+    (103, '621133672201', '2025-11-03 10:45:00'),
+    (104, '621133672202', '2025-11-04 11:20:00'),
+    (105, '621133672203', '2025-11-05 12:10:00'),
+    (106, '621133672204', '2025-11-06 13:50:00'),
+    (107, '621133672205', '2025-11-07 14:30:00'),
+    (108, '621133672206', '2025-11-08 15:05:00'),
+    (109, '621133672207', '2025-11-09 16:25:00'),
+    (110, '621133672208', '2025-11-10 17:40:00');
 INSERT INTO Ingredient (
         Ingredient_ID,
         Ingredient_name,
@@ -855,25 +1558,338 @@ INSERT INTO Ingredient (
         Unit
     )
 VALUES (
-        801,
+        1,
+        'Gạo',
+        100,
+        'Nguyên liệu cơ bản cho các món cơm',
+        'kg'
+    ),
+    (
+        2,
         'Thịt heo',
         50,
-        'Nguyên liệu chính cho bánh mì',
+        'Nguyên liệu làm các món thịt heo',
         'kg'
     ),
-    (802, 'Bánh mì', 100, 'Vỏ bánh mì tươi', 'ổ'),
-    (803, 'Hành phi', 20, 'Gia vị', 'kg'),
     (
-        804,
+        3,
         'Thịt bò',
-        50,
-        'Nguyên liệu chính cho bún bò',
+        40,
+        'Nguyên liệu làm các món thịt bò',
         'kg'
     ),
-    (805, 'Phở', 50, 'Nguyên liệu chính phở', 'kg');
+    (4, 'Gà', 60, 'Nguyên liệu làm các món gà', 'kg'),
+    (
+        5,
+        'Cá hồi',
+        30,
+        'Nguyên liệu làm các món cá',
+        'kg'
+    ),
+    (
+        6,
+        'Cà chua',
+        80,
+        'Nguyên liệu chế biến món xào, salad',
+        'kg'
+    ),
+    (7, 'Dưa leo', 70, 'Nguyên liệu làm salad', 'kg'),
+    (8, 'Hành tây', 50, 'Nguyên liệu xào nấu', 'kg'),
+    (9, 'Tỏi', 20, 'Nguyên liệu gia vị', 'kg'),
+    (10, 'Ớt', 25, 'Nguyên liệu gia vị', 'kg'),
+    (11, 'Mì ống', 60, 'Nguyên liệu làm pasta', 'kg'),
+    (
+        12,
+        'Bột năng',
+        40,
+        'Nguyên liệu làm các món xốt',
+        'kg'
+    ),
+    (
+        13,
+        'Trứng gà',
+        120,
+        'Nguyên liệu làm món trứng, bánh',
+        'quả'
+    ),
+    (
+        14,
+        'Sữa tươi',
+        80,
+        'Nguyên liệu làm đồ uống, bánh',
+        'lít'
+    ),
+    (
+        15,
+        'Phô mai',
+        50,
+        'Nguyên liệu làm pizza, salad',
+        'kg'
+    ),
+    (
+        16,
+        'Rau cải',
+        90,
+        'Nguyên liệu xào hoặc salad',
+        'kg'
+    ),
+    (
+        17,
+        'Khoai tây',
+        70,
+        'Nguyên liệu làm món chiên, nướng',
+        'kg'
+    ),
+    (
+        18,
+        'Bánh mì',
+        100,
+        'Nguyên liệu làm sandwich',
+        'cái'
+    ),
+    (
+        19,
+        'Đường',
+        60,
+        'Nguyên liệu làm bánh, nước ngọt',
+        'kg'
+    ),
+    (20, 'Muối', 40, 'Nguyên liệu gia vị', 'kg');
+INSERT INTO Company (Company_ID, Company_name, Email, Phone_number)
+VALUES (
+        1,
+        'Công ty TNHH Thực Phẩm ABC',
+        'contact@abcfood.vn',
+        '0901234567'
+    ),
+    (
+        2,
+        'Công ty Cổ phần Nông Sản XYZ',
+        'info@xyzagri.vn',
+        '0912345678'
+    ),
+    (
+        3,
+        'Công ty TNHH Gia Vị Việt',
+        'sales@viethubspice.vn',
+        '0923456789'
+    ),
+    (
+        4,
+        'Công ty Cổ phần Đồ Uống Fresh',
+        'support@freshdrink.vn',
+        '0934567890'
+    ),
+    (
+        5,
+        'Công ty TNHH Hải Sản Ocean',
+        'oceanseafood@vn.com',
+        '0945678901'
+    );
+-- 10 batch mẫu
+INSERT INTO Batch (
+        Batch_ID,
+        Production_date,
+        Batch_name,
+        Quantity,
+        Recived_date,
+        Cost,
+        Delivery_date,
+        Company_ID,
+        Branch_ID
+    )
+VALUES (
+        1,
+        '2025-11-01',
+        'Lô gạo A',
+        500,
+        '2025-11-03',
+        1500000.00,
+        '2025-11-05',
+        1,
+        1
+    ),
+    (
+        2,
+        '2025-11-02',
+        'Lô rau củ B',
+        300,
+        '2025-11-04',
+        900000.00,
+        '2025-11-06',
+        2,
+        1
+    ),
+    (
+        3,
+        '2025-11-03',
+        'Lô thịt heo C',
+        200,
+        '2025-11-05',
+        1200000.00,
+        '2025-11-07',
+        3,
+        2
+    ),
+    (
+        4,
+        '2025-11-04',
+        'Lô cá tươi D',
+        150,
+        '2025-11-06',
+        1800000.00,
+        '2025-11-08',
+        5,
+        2
+    ),
+    (
+        5,
+        '2025-11-05',
+        'Lô gia vị E',
+        400,
+        '2025-11-07',
+        600000.00,
+        '2025-11-09',
+        3,
+        3
+    ),
+    (
+        6,
+        '2025-11-06',
+        'Lô bánh mì F',
+        250,
+        '2025-11-08',
+        700000.00,
+        '2025-11-10',
+        4,
+        3
+    ),
+    (
+        7,
+        '2025-11-07',
+        'Lô trứng G',
+        600,
+        '2025-11-09',
+        900000.00,
+        '2025-11-11',
+        2,
+        4
+    ),
+    (
+        8,
+        '2025-11-08',
+        'Lô sữa H',
+        350,
+        '2025-11-10',
+        1100000.00,
+        '2025-11-12',
+        4,
+        4
+    ),
+    (
+        9,
+        '2025-11-09',
+        'Lô trái cây I',
+        500,
+        '2025-11-11',
+        1300000.00,
+        '2025-11-13',
+        2,
+        5
+    ),
+    (
+        10,
+        '2025-11-10',
+        'Lô nước ép J',
+        300,
+        '2025-11-12',
+        800000.00,
+        '2025-11-14',
+        4,
+        5
+    );
+-- 20 record Contain (giả sử mỗi batch có 2 thành phần)
 INSERT INTO Contain (Ingredient_ID, Batch_ID)
-VALUES (801, 701),
-    (802, 701),
-    (803, 703),
-    (804, 704),
-    (805, 705);
+VALUES (1, 1),
+    (2, 1),
+    (3, 2),
+    (4, 2),
+    (5, 3),
+    (6, 3),
+    (7, 4),
+    (8, 4),
+    (9, 5),
+    (10, 5),
+    (11, 6),
+    (12, 6),
+    (13, 7),
+    (14, 7),
+    (15, 8),
+    (16, 8),
+    (17, 9),
+    (18, 9),
+    (19, 10),
+    (20, 10);
+-- Bảng Menu: tạo menu cho 5 chi nhánh, 3 ca mỗi ngày, 5 ngày
+INSERT INTO Menu (Branch_ID, Shift, Date_menu)
+VALUES -- BK1
+    (1, 'Morning', '2025-11-24'),
+    (1, 'Afternoon', '2025-11-24'),
+    (1, 'Evening', '2025-11-24'),
+    (1, 'Morning', '2025-11-25'),
+    (1, 'Afternoon', '2025-11-25'),
+    (1, 'Evening', '2025-11-25'),
+    (1, 'Morning', '2025-11-26'),
+    (1, 'Afternoon', '2025-11-26'),
+    (1, 'Evening', '2025-11-26'),
+    -- BK2
+    (2, 'Morning', '2025-11-24'),
+    (2, 'Afternoon', '2025-11-24'),
+    (2, 'Evening', '2025-11-24'),
+    (2, 'Morning', '2025-11-25'),
+    (2, 'Afternoon', '2025-11-25'),
+    (2, 'Evening', '2025-11-25'),
+    -- USSH1
+    (3, 'Morning', '2025-11-24'),
+    (3, 'Afternoon', '2025-11-24'),
+    (3, 'Evening', '2025-11-24'),
+    (3, 'Morning', '2025-11-25'),
+    (3, 'Afternoon', '2025-11-25'),
+    -- USSH2
+    (4, 'Morning', '2025-11-24'),
+    (4, 'Afternoon', '2025-11-24'),
+    (4, 'Evening', '2025-11-24'),
+    -- UIT
+    (5, 'Morning', '2025-11-24'),
+    (5, 'Afternoon', '2025-11-24');
+-- Bảng Has: phân bổ món ăn cho từng chi nhánh và ca
+INSERT INTO Has (Food_ID, Branch_ID, Shift, Date_menu)
+VALUES -- BK1
+    (1, 1, 'Morning', '2025-11-24'),
+    (2, 1, 'Morning', '2025-11-24'),
+    (3, 1, 'Afternoon', '2025-11-24'),
+    (4, 1, 'Afternoon', '2025-11-24'),
+    (5, 1, 'Evening', '2025-11-24'),
+    (6, 1, 'Evening', '2025-11-24'),
+    -- BK2
+    (7, 2, 'Morning', '2025-11-24'),
+    (8, 2, 'Afternoon', '2025-11-24'),
+    (9, 2, 'Evening', '2025-11-24'),
+    (10, 2, 'Morning', '2025-11-25'),
+    (11, 2, 'Afternoon', '2025-11-25'),
+    (12, 2, 'Evening', '2025-11-25'),
+    -- USSH1
+    (13, 3, 'Morning', '2025-11-24'),
+    (14, 3, 'Afternoon', '2025-11-24'),
+    (15, 3, 'Evening', '2025-11-24'),
+    (16, 3, 'Morning', '2025-11-25'),
+    (17, 3, 'Afternoon', '2025-11-25'),
+    -- USSH2
+    (18, 4, 'Morning', '2025-11-24'),
+    (19, 4, 'Afternoon', '2025-11-24'),
+    (20, 4, 'Evening', '2025-11-24'),
+    -- UIT
+    (1, 5, 'Morning', '2025-11-24'),
+    (2, 5, 'Afternoon', '2025-11-24'),
+    (3, 5, 'Morning', '2025-11-24'),
+    (4, 5, 'Afternoon', '2025-11-24');
