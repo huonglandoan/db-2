@@ -1,5 +1,6 @@
 // ...existing code...
 import { useState, useEffect } from "react";
+import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
 import {
   UtensilsCrossed,
   LogOut,
@@ -28,7 +29,7 @@ import { StaffScanQR } from "./components/staff/StaffScanQR";
 import { StaffTransactionLog } from "./components/staff/StaffTransactionLog";
 import { StaffProfile } from "./components/staff/StaffProfile";
 
-import { ManagerDashboard } from "./components/manager/ManagerDashboard";
+//import { ManagerDashboard } from "./components/manager/ManagerDashboard";
 import { ManagerMenu } from "./components/manager/ManagerMenu";
 import { ManagerVoucher } from "./components/manager/ManagerVoucher";
 import { ManagerEmployees } from "./components/manager/ManagerEmployees";
@@ -48,12 +49,30 @@ interface User {
   branchId?: string;
 }
 
+const BranchSelectionRequired = () => (
+  <Alert variant="default" className="bg-yellow-50 border-yellow-300 text-yellow-800">
+    <Settings className="h-4 w-4" />
+    <AlertTitle>Yêu cầu chọn chi nhánh</AlertTitle>
+    <AlertDescription>
+      Vui lòng vào tab **Chi nhánh** để chọn chi nhánh đang quản lý trước khi sử dụng các chức năng khác.
+    </AlertDescription>
+  </Alert>
+);
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [customerPage, setCustomerPage] = useState<CustomerPage>("home");
   const [staffPage, setStaffPage] = useState<StaffPage>("scan-qr");
   const [managerPage, setManagerPage] = useState<ManagerPage>("dashboard");
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [Address, setAddress] = useState<string | null>(null);
+  
+  const handleBranchChange = (branchId: string, branchAddress: string) => {
+     setSelectedBranch(branchId);
++    setAddress(branchAddress);
++    setUser((prev) => (prev ? { ...prev, branchId } : prev));
+  };
+  
 
   useEffect(() => {
     const parseHash = () => {
@@ -65,7 +84,7 @@ export default function App() {
           id: "demo-user",
           name: "Người dùng demo",
           role,
-          branchId: role === "staff" || role === "manager" ? "BR001" : undefined,
+          branchId: undefined,
         });
 
         if (role === "customer" && page) setCustomerPage(page as CustomerPage);
@@ -262,16 +281,20 @@ export default function App() {
         </nav>
 
         <main className="container mx-auto p-6 lg:p-8">
-          {managerPage === "dashboard" && <ManagerDashboard user={user} />}
-          {managerPage === "menu" && <ManagerMenu currentBranchId={branchId} />}
-          {managerPage === "food" && <ManagerFood currentBranchId={branchId} />}
+          {/* {managerPage === "dashboard" && <ManagerDashboard user={user} />} */}
           {managerPage === "voucher" && <ManagerVoucher user={user} />}
           {managerPage === "employees" && <ManagerEmployees />}
           {managerPage === "branch" && (
-            <ManagerBranch currentBranchId={branchId} onBranchChange={handleManagerBranchChange} />
+            <ManagerBranch 
+        currentBranchId={selectedBranch} 
+        // branchAddress ={}// Truyền state xuống
+        onBranchChange={handleBranchChange} // Truyền hàm cập nhật state xuống  
+      />
           )}
-           {managerPage === "reports" && <Reports />}
-           {managerPage === 'customer' && <ManagerCustomer/>}
+          {managerPage === "menu" && <ManagerMenu currentBranchId={selectedBranch ?? null} currentAddress={Address}/>}
+          {managerPage === "food" && <ManagerFood currentBranchId={selectedBranch ?? null} currentAddress={Address} />}
+          {managerPage === "reports" && <Reports />}
+          {managerPage === 'customer' && <ManagerCustomer/>}
         </main>
       </div>
     );

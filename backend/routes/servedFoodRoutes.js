@@ -1,15 +1,27 @@
-// routes/foodRoutes.js
-const express = require('express');
-const router = express.Router(); // Khởi tạo Express Router
-const db = require('../dbConfig'); // Nhập đối tượng kết nối DB
 
-// 1. GET /food - Lấy tất cả món ăn
+const express = require('express');
+const router = express.Router(); 
+const db = require('../dbConfig'); 
+
 router.get('/', (req, res) => {
-  // Lưu ý: Tên bảng trong DB là ServedFood
-  db.query("SELECT * FROM ServedFood", (err, results) => {
+  const { branchId } = req.query;
+
+  let sql = `
+    SELECT DISTINCT sf.*
+    FROM ServedFood sf
+    JOIN Has h ON h.Food_ID = sf.Food_ID
+  `;
+  const params = [];
+
+  if (branchId) {
+    sql += ' WHERE h.Branch_ID = ?';
+    params.push(branchId);
+  }
+
+  db.query(sql, params, (err, results) => {
     if (err) {
       console.error(err);
-      return res.status(500).json({ error: "Lỗi khi lấy dữ liệu Food" });
+      return res.status(500).json({ error: 'Lỗi khi lấy dữ liệu Food' });
     }
     res.json(results);
   });
