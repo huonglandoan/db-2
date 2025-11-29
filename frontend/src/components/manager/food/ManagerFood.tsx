@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "../../ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../ui/table";
 import { Badge } from "../../ui/badge";
 import { Plus, Search, UtensilsCrossed, Store, Edit, Trash2 } from "lucide-react";
@@ -11,7 +11,7 @@ import { ImageWithFallback } from "../../resize/ImageWithFallback";
 
 const API_BASE_URL = "http://localhost:3000";
 
-interface Food {
+export interface Food {
   id: string;
   name: string;
   category: string;
@@ -34,6 +34,7 @@ export function ManagerFood({ currentBranchId, currentAddress }: FoodManagementP
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tất cả");
   const [isFoodDialogOpen, setIsFoodDialogOpen] = useState(false);
+  const [editFoodId, setEditFoodId] = useState<string | null>(null);
 
   // Load món ăn khi chi nhánh thay đổi
   useEffect(() => {
@@ -44,14 +45,14 @@ export function ManagerFood({ currentBranchId, currentAddress }: FoodManagementP
         if (!res.ok) throw new Error("Lỗi tải món ăn");
         const data = await res.json();
         const mapped: Food[] = data.map((r: any) => ({
-          id: String(r.Food_ID ?? r.id),
-          name: r.Food_name ?? r.name,
-          category: r.Category ?? r.category,
+          id: String(r.Food_ID ?? r.id ?? ""),
+          name: r.Food_name ?? r.name ?? "",
+          category: r.Category ?? r.category ?? "",
           price: Number(r.Unit_price ?? r.price ?? 0),
           quantity: Number(r.Quantity ?? r.quantity ?? 0),
           image: r.Image ?? r.image ?? "",
-          status: r.Availability_status ?? r.status ?? "OutOfStock",
-          branchId: String(r.Branch_ID ?? r.branch_id),
+          status: r.Availability_status ?? r.status ?? "Hết hàng",
+          branchId: String(r.Branch_ID ?? r.branch_id ?? ""),
         }));
         setFoods(mapped);
       } catch (err) {
@@ -63,13 +64,14 @@ export function ManagerFood({ currentBranchId, currentAddress }: FoodManagementP
   }, [currentBranchId, currentAddress]);
 
   const filteredFoods = foods.filter(food => {
-    const matchesSearch =
-      food.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      food.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      food.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "Tất cả" || food.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const matchesSearch =
+    (food.name ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (food.id ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (food.category ?? "").toLowerCase().includes(searchTerm.toLowerCase());
+  const matchesCategory = selectedCategory === "Tất cả" || (food.category ?? "") === selectedCategory;
+  return matchesSearch && matchesCategory;
+});
+
 
   const handleDeleteFood = async (id: string) => {
   if (!confirm("Bạn có chắc muốn xóa món này?")) return;
@@ -136,6 +138,7 @@ export function ManagerFood({ currentBranchId, currentAddress }: FoodManagementP
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>Thêm món ăn mới</DialogTitle>
+                  <DialogDescription>Điền đầy đủ thông tin món ăn và nhấn Lưu</DialogDescription>
                 </DialogHeader>
                 <FoodForm
                   currentBranchId={currentBranchId}
@@ -196,16 +199,49 @@ export function ManagerFood({ currentBranchId, currentAddress }: FoodManagementP
                     <TableCell>{food.name}</TableCell>
                     <TableCell><Badge variant="outline">{food.category}</Badge></TableCell>
                     <TableCell>{food.quantity}</TableCell>
-                    <TableCell>{food.price.toLocaleString('vi-VN')}đ</TableCell>
+                    <TableCell>{(food.price ?? 0).toLocaleString('vi-VN')}đ</TableCell>
                     <TableCell><Badge variant="default">{food.status}</Badge></TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm"><Edit className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteFood(food.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Dialog
+                        open={editFoodId === food.id}           // trạng thái riêng cho Edit
+                        onOpenChange={(open) => setEditFoodId(open ? food.id : null)}
+                      >
+                        <DialogTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Chỉnh sửa món ăn</DialogTitle>
+                            <DialogDescription>Chỉnh sửa thông tin món ăn và nhấn Lưu</DialogDescription>
+                          </DialogHeader>
+                          <FoodForm
+                            currentBranchId={currentBranchId}
+                            categories={categories.filter(c => c !== "Tất cả")} // loại bỏ "Tất cả"
+                            foodData={food}                                         // truyền món hiện tại
+                           onAdded={(updatedFood) => {
+                            setFoods(prev =>
+                              prev.map(f => (f.id === updatedFood.id ? updatedFood : f)) // <-- id chứ không phải Food_ID
+                            );
+                            setEditFoodId(null); // đóng dialog
+                          }}
+                            onClose={() => setEditFoodId(null)}
+                          />
+                        </DialogContent>
+                      </Dialog>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteFood(food.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </TableCell>
+
                   </TableRow>
                 )) : (
                   <TableRow>
