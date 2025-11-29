@@ -35,7 +35,7 @@ import { ManagerVoucher } from "./components/manager/ManagerVoucher";
 import { ManagerEmployees } from "./components/manager/ManagerEmployees";
 import { ManagerBranch } from "./components/manager/ManagerBranch";
 import { Reports } from "./components/manager/Reports";
-import { ManagerFood } from "./components/manager/ManagerFood";
+import { ManagerFood } from "./components/manager/food/ManagerFood";
 import { ManagerCustomer } from "./components/manager/ManagerCustomer";
 type UserRole = "customer" | "staff" | "manager";
 type CustomerPage = "home" | "menu" | "order" | "wallet" | "order-history" | "voucher";
