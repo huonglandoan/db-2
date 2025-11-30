@@ -228,13 +228,13 @@ export default function App() {
 
   const managerMenus = [
     { id: "dashboard" as ManagerPage, label: "Dashboard", icon: User },
+    { id: "branch" as ManagerPage, label: "Chi nhánh", icon: FileText },
     { id: "menu" as ManagerPage, label: "Menu", icon: UtensilsCrossed },
     { id: "food" as ManagerPage, label: "Thức ăn", icon: UtensilsCrossed },
     { id: "voucher" as ManagerPage, label: "Voucher", icon: Gift },
     { id: "employees" as ManagerPage, label: "Nhân viên", icon: User },
     { id: "customer" as ManagerPage, label: "Khách hàng", icon: User },
     { id: "reports" as ManagerPage, label: "Báo cáo", icon: FileText },
-    { id: "branch" as ManagerPage, label: "Chi nhánh", icon: FileText },
   ];
 
     if (user.role === "manager") {
