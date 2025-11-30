@@ -95,7 +95,9 @@ export function ManagerMenu({ currentBranchId, currentAddress }: ManagerMenuProp
     const fetchAvailableFoods = async () => {
       try {
         // Dùng endpoint /food giống như ManagerFood
-        const res = await fetch(`${API_BASE_URL}/food?branchId=${selectedBranchId}`);
+        const res = await fetch(
+        `${API_BASE_URL}/menu/available-foods?branchId=${selectedBranchId}`
+      );
         if (!res.ok) throw new Error("Lỗi tải món ăn");
         const data = await res.json();
         

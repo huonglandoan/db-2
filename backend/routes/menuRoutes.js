@@ -12,7 +12,6 @@ router.get("/available-foods", (req, res) => {
   }
 
   // Lấy các món đã từng có trong menu của chi nhánh này (từ bảng Has)
-  // DISTINCT để tránh trùng lặp
   const sql = `
     SELECT DISTINCT
       sf.Food_ID,
