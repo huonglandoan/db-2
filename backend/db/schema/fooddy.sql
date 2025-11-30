@@ -123,7 +123,7 @@ CREATE TABLE Voucher (
 
 -- Bảng món ăn phục vụ
 CREATE TABLE ServedFood (
-    Food_ID INT PRIMARY KEY,
+    Food_ID INT PRIMARY KEY AUTO_INCREMENT,
     Food_name VARCHAR(100) NOT NULL,
     Unit_price DECIMAL(10,2) NOT NULL CHECK (Unit_price >= 0),
     Availability_status ENUM('Còn hàng', 'Hết hàng', 'Ngừng bán')
@@ -241,6 +241,16 @@ CREATE TABLE Has (
         ON UPDATE CASCADE
 );
 
+CREATE TABLE Has_food(
+    Food_ID INT NOT NULL,
+    Branch_ID INT NOT NULL,
+    PRIMARY KEY (Food_ID, Branch_ID),
+        FOREIGN KEY (Food_ID) REFERENCES ServedFood(Food_ID),
+    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+
+);
 DELIMITER $$
 
 CREATE TRIGGER trg_payment_before_insert
@@ -816,5 +826,20 @@ VALUES
 ('Sáng',  '621133672222'),
 ('Chiều', '621133672223');
 
+INSERT INTO Has_food(Food_ID, Branch_ID)
+VALUES
+-- BK1 (Branch 1)
+(1, 1), (2, 1), (3, 1), (4, 1), (5, 1),(21,1),(22,1),(23,1),
 
+-- BK2 (Branch 2)
+(6, 2), (7, 2), (8, 2), (9, 2), (10, 2),(23,2),(22,2),(24,2),
+
+-- USSH1 (Branch 3)
+(11, 3), (12, 3), (13, 3), (14, 3), (15, 3),(25,3),(23,3),(24,3),
+
+-- USSH2 (Branch 4)
+(16, 4), (17, 4), (18, 4), (19, 4),(25,4),(21,4),(24,4),
+
+-- UIT (Branch 5)
+(20, 5), (1, 5), (2, 5), (3, 5),(21,5),(24,5),(23,5);
 
