@@ -1,295 +1,246 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Alert, AlertDescription } from "../ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, ShoppingCart } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, AlertCircle, Loader2 } from "lucide-react";
 
-const monthlyRevenue = [
-  { month: "T1", revenue: 45000, orders: 150, profit: 12000 },
-  { month: "T2", revenue: 52000, orders: 180, profit: 15600 },
-  { month: "T3", revenue: 48000, orders: 165, profit: 13200 },
-  { month: "T4", revenue: 61000, orders: 210, profit: 18300 },
-  { month: "T5", revenue: 55000, orders: 190, profit: 16500 },
-  { month: "T6", revenue: 67000, orders: 230, profit: 20100 },
-];
+const API_BASE = "http://localhost:3000";
 
-const categoryRevenue = [
-  { name: "Món chính", value: 120000, percent: 40 },
-  { name: "Menu hàng ngày", value: 90000, percent: 30 },
-  { name: "Đồ uống", value: 60000, percent: 20 },
-  { name: "Khai vị & Tráng miệng", value: 30000, percent: 10 },
-];
+interface Branch {
+  id: string;   
+  address: string;   
+}
 
-const topProducts = [
-  { name: "Phở bò đặc biệt", sold: 245, revenue: 15925000 },
-  { name: "Bún chả Hà Nội", sold: 189, revenue: 10395000 },
-  { name: "Menu hàng ngày", sold: 156, revenue: 18720000 },
-  { name: "Cơm rang dương châu", sold: 176, revenue: 8800000 },
-  { name: "Canh chua cá lóc", sold: 134, revenue: 9380000 },
-];
+interface RevenueData {
+  branchId: number;
+  startDate: string;
+  endDate: string;
+  revenue: number;
+}
 
-const COLORS = ["#c65d21", "#e07a3d", "#f4a261", "#d4a574"];
+interface DiscountExpenseData {
+  branchId: number;
+  startDate: string;
+  endDate: string;
+  discountExpense: number;
+}
 
 export function Reports() {
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
+  const [discountExpenseData, setDiscountExpenseData] = useState<DiscountExpenseData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  // Lấy danh sách chi nhánh
+  useEffect(() => {
+    fetch(`${API_BASE}/branch`)
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Failed to fetch branches');
+        }
+        return res.json();
+      })
+      .then(data => {
+        console.log('Branches data:', data);  
+        setBranches(data);
+      })
+      .catch(err => {
+        console.error("Error fetching branches:", err);
+        setError("Không thể tải danh sách chi nhánh");
+      });
+  }, []);
+
+  // Tính toán dữ liệu
+  const handleCalculate = async () => {
+    if (!selectedBranchId || !startDate || !endDate) {
+      setError("Vui lòng điền đầy đủ thông tin");
+      return;
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+      setError("Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // Gọi 2 API song song
+      const [revenueRes, expenseRes] = await Promise.all([
+        fetch(`${API_BASE}/calc/revenue?branchId=${selectedBranchId}&startDate=${startDate}&endDate=${endDate}`),
+        fetch(`${API_BASE}/calc/discount-expense?branchId=${selectedBranchId}&startDate=${startDate}&endDate=${endDate}`)
+      ]);
+
+      if (!revenueRes.ok || !expenseRes.ok) {
+        const revenueErr = await revenueRes.json().catch(() => ({}));
+        const expenseErr = await expenseRes.json().catch(() => ({}));
+        throw new Error(revenueErr.error || expenseErr.error || "Lỗi tính toán");
+      }
+
+      const revenue = await revenueRes.json();
+      const expense = await expenseRes.json();
+
+      setRevenueData(revenue);
+      setDiscountExpenseData(expense);
+    } catch (err: any) {
+      setError(err.message || "Có lỗi xảy ra");
+      setRevenueData(null);
+      setDiscountExpenseData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Tính lợi nhuận (doanh thu - chi phí giảm giá)
+  const profit = revenueData && discountExpenseData 
+    ? revenueData.revenue - discountExpenseData.discountExpense 
+    : 0;
+
+  // Dữ liệu cho biểu đồ
+  const chartData = revenueData && discountExpenseData ? [
+    {
+      name: "Doanh thu",
+      value: revenueData.revenue,
+      color: "#c65d21"
+    },
+    {
+      name: "Chi phí giảm giá",
+      value: discountExpenseData.discountExpense,
+      color: "#e07a3d"
+    },
+    {
+      name: "Lợi nhuận",
+      value: profit,
+      color: "#f4a261"
+    }
+  ] : [];
+
   return (
     <div className="space-y-6">
       <div>
-        <h1>Thống kê báo cáo</h1>
+        <h1 className="text-3xl font-bold">Thống kê báo cáo</h1>
         <p className="text-muted-foreground">
-          Phân tích doanh thu và hiệu suất kinh doanh
+          Phân tích doanh thu và chi phí giảm giá theo chi nhánh
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle>Doanh thu tháng</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">67,000,000đ</div>
-            <div className="flex items-center text-xs text-green-600">
-              <TrendingUp className="mr-1 h-3 w-3" />
-              +21.8% so với tháng trước
+      {/* Form chọn thông tin */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Chọn thông tin báo cáo</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="space-y-2">
+              <Label htmlFor="branch">Chi nhánh</Label>
+              <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
+                <SelectTrigger id="branch">
+                  <SelectValue placeholder="Chọn chi nhánh" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map(branch => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.address}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle>Lợi nhuận</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">20,100,000đ</div>
-            <div className="flex items-center text-xs text-green-600">
-              <TrendingUp className="mr-1 h-3 w-3" />
-              +18.5% so với tháng trước
+            <div className="space-y-2">
+              <Label htmlFor="startDate">Ngày bắt đầu</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle>Đơn hàng</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">230</div>
-            <div className="flex items-center text-xs text-green-600">
-              <TrendingUp className="mr-1 h-3 w-3" />
-              +20 đơn hàng
+            <div className="space-y-2">
+              <Label htmlFor="endDate">Ngày kết thúc</Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle>Giá trị TB/Đơn</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">291,304đ</div>
-            <div className="flex items-center text-xs text-red-600">
-              <TrendingDown className="mr-1 h-3 w-3" />
-              -2.3% so với tháng trước
+            <div className="space-y-2 flex items-end">
+              <Button 
+                onClick={handleCalculate} 
+                disabled={loading}
+                className="w-full"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Đang tính toán...
+                  </>
+                ) : (
+                  "Tính toán"
+                )}
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
 
-      <Tabs defaultValue="revenue" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="revenue">Doanh thu</TabsTrigger>
-          <TabsTrigger value="products">Sản phẩm</TabsTrigger>
-          <TabsTrigger value="comparison">So sánh</TabsTrigger>
-        </TabsList>
+          {error && (
+            <Alert variant="destructive" className="mt-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
 
-        <TabsContent value="revenue" className="space-y-4">
+      {/* Kết quả */}
+      {revenueData && discountExpenseData && (
+        <>
+          {/* Thẻ thống kê */}
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
-              <CardHeader>
-                <CardTitle>Doanh thu theo tháng</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle>Doanh thu</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={monthlyRevenue}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f4e4d7" />
-                    <XAxis dataKey="month" stroke="#8b7355" />
-                    <YAxis stroke="#8b7355" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#ffffff",
-                        border: "1px solid #c65d21"
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="#c65d21"
-                      fill="#ffd7b8"
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <div className="text-2xl font-bold">
+                  {revenueData.revenue.toLocaleString('vi-VN')}đ
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Từ {new Date(revenueData.startDate).toLocaleDateString('vi-VN')} đến {new Date(revenueData.endDate).toLocaleDateString('vi-VN')}
+                </p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Lợi nhuận theo tháng</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle>Chi phí giảm giá</CardTitle>
+                <TrendingDown className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={monthlyRevenue}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f4e4d7" />
-                    <XAxis dataKey="month" stroke="#8b7355" />
-                    <YAxis stroke="#8b7355" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#ffffff",
-                        border: "1px solid #c65d21"
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="profit"
-                      stroke="#c65d21"
-                      strokeWidth={3}
-                      dot={{ fill: "#c65d21", r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <div className="text-2xl font-bold text-red-600">
+                  -{discountExpenseData.discountExpense.toLocaleString('vi-VN')}đ
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Tổng chi phí voucher đã sử dụng
+                </p>
               </CardContent>
             </Card>
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Doanh thu theo danh mục</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categoryRevenue}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${percent}%`}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {categoryRevenue.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-
-                <div className="space-y-4">
-                  {categoryRevenue.map((category, index) => (
-                    <div key={category.name} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div
-                          className="h-4 w-4 rounded"
-                          style={{ backgroundColor: COLORS[index] }}
-                        />
-                        <span>{category.name}</span>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium">{category.value.toLocaleString('vi-VN')}đ</p>
-                        <p className="text-sm text-muted-foreground">{category.percent}%</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="products" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Top sản phẩm bán chạy</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={topProducts} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f4e4d7" />
-                  <XAxis type="number" stroke="#8b7355" />
-                  <YAxis type="category" dataKey="name" stroke="#8b7355" width={150} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #c65d21"
-                    }}
-                  />
-                  <Bar dataKey="sold" fill="#c65d21" radius={[0, 8, 8, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Chi tiết sản phẩm bán chạy</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {topProducts.map((product, index) => (
-                  <div key={product.name} className="flex items-center justify-between border-b border-border pb-3 last:border-0">
-                    <div className="flex items-center space-x-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                        <span className="font-bold text-primary">#{index + 1}</span>
-                      </div>
-                      <div>
-                        <p className="font-medium">{product.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Đã bán: {product.sold} sản phẩm
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">{product.revenue.toLocaleString('vi-VN')}đ</p>
-                      <p className="text-sm text-muted-foreground">Doanh thu</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="comparison" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>So sánh doanh thu và đơn hàng</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={monthlyRevenue}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f4e4d7" />
-                  <XAxis dataKey="month" stroke="#8b7355" />
-                  <YAxis stroke="#8b7355" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #c65d21"
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="revenue" fill="#c65d21" name="Doanh thu" radius={[8, 8, 0, 0]} />
-                  <Bar dataKey="orders" fill="#e07a3d" name="Đơn hàng" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        </>
+      )}
     </div>
   );
 }

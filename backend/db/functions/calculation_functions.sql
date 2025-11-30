@@ -35,6 +35,7 @@ BEGIN
     IF v_Branch_Exists = 0 THEN
         SIGNAL SQLSTATE '45000' 
         SET MESSAGE_TEXT = 'Lỗi: Mã Chi nhánh không tồn tại.';
+        RETURN NULL;
     END IF;
 
     -- Validate ngày
@@ -43,6 +44,7 @@ BEGIN
        OR p_Date_Start > p_Date_End THEN
         SIGNAL SQLSTATE '45000' 
         SET MESSAGE_TEXT = 'Lỗi: Ngày bắt đầu phải nhỏ hơn hoặc bằng Ngày kết thúc.';
+        RETURN NULL;
     END IF;
 
     OPEN revenue_cursor;
@@ -103,6 +105,7 @@ BEGIN
     IF v_Branch_Exists = 0 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Lỗi: Mã Chi nhánh không tồn tại.';
+        RETURN NULL;
     END IF;
 
     -- Validate ngày
@@ -111,6 +114,7 @@ BEGIN
        OR p_Start_Date > p_End_Date THEN
         SIGNAL SQLSTATE '45000' 
         SET MESSAGE_TEXT = 'Lỗi: Ngày bắt đầu phải nhỏ hơn hoặc bằng Ngày kết thúc.';
+        RETURN NULL;
     END IF;
 
     OPEN order_line_cursor;

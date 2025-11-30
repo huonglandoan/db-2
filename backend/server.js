@@ -14,8 +14,9 @@ app.use('/food', foodRoutes);
 const branchRoutes = require('./routes/branchRoutes');
 app.use('/branch', branchRoutes);
 const menuRoutes = require('./routes/menuRoutes');
-app.use('/menu', menuRoutes);
-
+app.use('/menu', menuRoutes); 
+const calcRoutes = require('./routes/calcRoutes');
+app.use('/calc', calcRoutes);
 
 app.listen(3000, () => {
   console.log("Server chạy tại http://localhost:3000");
