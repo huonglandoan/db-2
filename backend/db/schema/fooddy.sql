@@ -843,3 +843,36 @@ VALUES
 -- UIT (Branch 5)
 (20, 5), (1, 5), (2, 5), (3, 5),(21,5),(24,5),(23,5);
 
+----- Test
+
+-- 1. THÊM VOUCHER MỚI (Cho CN 1 & 2)
+INSERT INTO Voucher (Voucher_ID, Description_voucher, Discount_value, Status_voucher, Date_start, Date_end, Branch_ID)
+VALUES
+(506, 'KM 15% don hang moi CN1', 15.00, 'Còn hiệu lực', '2025-11-01', '2025-11-30', 1);
+
+INSERT INTO Voucher (Voucher_ID, Description_voucher, Discount_value, Status_voucher, Date_start, Date_end, Branch_ID)
+VALUES
+(507, 'KM 10% cho tat ca don hang CN2', 10.00, 'Còn hiệu lực', '2025-11-01', '2025-11-30', 2);
+
+-- 2. THÊM LOG VÀ PAYMENT MỚI (Tránh trùng PK/FK)
+INSERT INTO Transaction_log (Log_ID, Staff_ID_number, Action_time)
+VALUES
+(111, '621133672158', '2025-11-21 10:00:00'),
+(112, '621133672204', '2025-11-22 14:00:00'); 
+
+INSERT INTO Payment (Payment_ID, Wallet_ID, Payment_type, Method, Time_stamp, Status_fooddy, Amount)
+VALUES
+(11, '00000001', 'Thanh toán món ăn', 'Banking', '2025-11-21 10:05:00', 'Thành công', 85000.00),
+(12, '00000002', 'Thanh toán món ăn', 'Ví điện tử', '2025-11-22 14:05:00', 'Thành công', 54000.00);
+
+-- 3. THÊM ĐƠN HÀNG MỚI (Đã nhận)
+-- Order 11 (CN1): 2 Phở Bò (50k) -> Giảm 15% -> Final Price 85k
+INSERT INTO Order_fooddy (Order_ID, Customer_ID_number, Food_ID, Log_ID, Payment_ID, Branch_ID, Pick_up_status, QR_code, Price, Quantity, Voucher_ID, Order_time)
+VALUES
+(11, '621133675121', 1, 111, 11, 1, 'Đã nhận', 'QR0011', 85000.00, 2, 506, '2025-11-21 10:00:00');
+
+-- Order 12 (CN2): 1 Mì Quảng (60k) -> Giảm 10% -> Final Price 54k
+INSERT INTO Order_fooddy (Order_ID, Customer_ID_number, Food_ID, Log_ID, Payment_ID, Branch_ID, Pick_up_status, QR_code, Price, Quantity, Voucher_ID, Order_time)
+VALUES
+(12, '621133675122', 8, 112, 12, 2, 'Đã nhận', 'QR0012', 54000.00, 1, 507, '2025-11-22 14:00:00');
+

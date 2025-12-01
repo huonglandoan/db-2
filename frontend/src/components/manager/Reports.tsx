@@ -4,10 +4,8 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Alert, AlertDescription } from "../ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, AlertCircle, Loader2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert"; 
+import { DollarSign, ShoppingCart, AlertCircle, Loader2 } from "lucide-react";
 
 const API_BASE = "http://localhost:3000";
 
@@ -20,23 +18,38 @@ interface RevenueData {
   branchId: number;
   startDate: string;
   endDate: string;
-  revenue: number;
+  revenue: number; 
 }
 
-interface DiscountExpenseData {
-  branchId: number;
-  startDate: string;
-  endDate: string;
-  discountExpense: number;
+interface LowStockData {
+    branchId: number;
+    threshold: number;
+    message: string;
 }
+
+// Set mặc định ban đầu
+const formatDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+const today = new Date();
+const formattedEndDate = formatDate(today);
+
+// Tính ngày bắt đầu (1 tháng trước)
+const oneMonthAgo = new Date();
+oneMonthAgo.setMonth(today.getMonth() - 1);
+const formattedStartDate = formatDate(oneMonthAgo);
 
 export function Reports() {
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [selectedBranchId, setSelectedBranchId] = useState<Branch[]>("1");
+  const [startDate, setStartDate] = useState<string>(formattedStartDate);
+  const [endDate, setEndDate] = useState<string>(formattedEndDate);
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
-  const [discountExpenseData, setDiscountExpenseData] = useState<DiscountExpenseData | null>(null);
+  const [lowStockData, setLowStockData] = useState<LowStockData | null>(null);
+  const [stockThreshold, setStockThreshold] = useState<string>("10"); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
 
@@ -61,7 +74,7 @@ export function Reports() {
 
   // Tính toán dữ liệu
   const handleCalculate = async () => {
-    if (!selectedBranchId || !startDate || !endDate) {
+    if (!selectedBranchId || !startDate || !endDate || !stockThreshold) {
       setError("Vui lòng điền đầy đủ thông tin");
       return;
     }
@@ -73,64 +86,46 @@ export function Reports() {
 
     setLoading(true);
     setError("");
+ 
 
     try {
-      // Gọi 2 API song song
-      const [revenueRes, expenseRes] = await Promise.all([
+      const thresholdValue = parseInt(stockThreshold) || 0;
+      const [revenueRes, stockRes] = await Promise.all([
         fetch(`${API_BASE}/calc/revenue?branchId=${selectedBranchId}&startDate=${startDate}&endDate=${endDate}`),
-        fetch(`${API_BASE}/calc/discount-expense?branchId=${selectedBranchId}&startDate=${startDate}&endDate=${endDate}`)
+        fetch(`${API_BASE}/calc/low-stock?branchId=${selectedBranchId}&threshold=${thresholdValue}`)
       ]);
 
-      if (!revenueRes.ok || !expenseRes.ok) {
+      if (!revenueRes.ok || !stockRes.ok) {
         const revenueErr = await revenueRes.json().catch(() => ({}));
-        const expenseErr = await expenseRes.json().catch(() => ({}));
-        throw new Error(revenueErr.error || expenseErr.error || "Lỗi tính toán");
+        const stockErr = await stockRes.json().catch(() => ({}));
+        throw new Error(revenueErr.error || stockErr.error || "Lỗi tính toán");
       }
 
       const revenue = await revenueRes.json();
-      const expense = await expenseRes.json();
+      const stockResult = await stockRes.json();
 
       setRevenueData(revenue);
-      setDiscountExpenseData(expense);
-    } catch (err: any) {
-      setError(err.message || "Có lỗi xảy ra");
-      setRevenueData(null);
-      setDiscountExpenseData(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+      setLowStockData({
+          branchId: parseInt(selectedBranchId),
+          threshold: parseInt(stockThreshold),
+          message: stockResult.message  
+      });
+    } catch (err: any) {
+      setError(err.message || "Có lỗi xảy ra");
+      setRevenueData(null);
+      setLowStockData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Tính lợi nhuận (doanh thu - chi phí giảm giá)
-  const profit = revenueData && discountExpenseData 
-    ? revenueData.revenue - discountExpenseData.discountExpense 
-    : 0;
-
-  // Dữ liệu cho biểu đồ
-  const chartData = revenueData && discountExpenseData ? [
-    {
-      name: "Doanh thu",
-      value: revenueData.revenue,
-      color: "#c65d21"
-    },
-    {
-      name: "Chi phí giảm giá",
-      value: discountExpenseData.discountExpense,
-      color: "#e07a3d"
-    },
-    {
-      name: "Lợi nhuận",
-      value: profit,
-      color: "#f4a261"
-    }
-  ] : [];
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Thống kê báo cáo</h1>
         <p className="text-muted-foreground">
-          Phân tích doanh thu và chi phí giảm giá theo chi nhánh
+          Phân tích các chỉ số kinh doanh theo chi nhánh
         </p>
       </div>
 
@@ -140,7 +135,7 @@ export function Reports() {
           <CardTitle>Chọn thông tin báo cáo</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-5">
             <div className="space-y-2">
               <Label htmlFor="branch">Chi nhánh</Label>
               <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
@@ -177,6 +172,16 @@ export function Reports() {
               />
             </div>
 
+            <div className="space-y-2"></div>
+              <Label htmlFor="stockThreshold">Ngưỡng tồn kho</Label>
+              <Input
+                id="stockThreshold"
+                type="number"
+                value={stockThreshold}
+                onChange={(e) => setStockThreshold(e.target.value)}
+              />
+            </div>
+
             <div className="space-y-2 flex items-end">
               <Button 
                 onClick={handleCalculate} 
@@ -192,8 +197,7 @@ export function Reports() {
                   "Tính toán"
                 )}
               </Button>
-            </div>
-          </div>
+            </div> 
 
           {error && (
             <Alert variant="destructive" className="mt-4">
@@ -205,10 +209,10 @@ export function Reports() {
       </Card>
 
       {/* Kết quả */}
-      {revenueData && discountExpenseData && (
+      {revenueData && lowStockData && (
         <>
           {/* Thẻ thống kê */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-1">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle>Doanh thu</CardTitle>
@@ -223,18 +227,19 @@ export function Reports() {
                 </p>
               </CardContent>
             </Card>
-
+          </div>
+          <div className="grid gap-4 md:grid-cols-1">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle>Chi phí giảm giá</CardTitle>
-                <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                <CardTitle>Tồn kho</CardTitle>
+                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">
-                  -{discountExpenseData.discountExpense.toLocaleString('vi-VN')}đ
+                <div className="text-xl font-semibold">
+                  {lowStockData.message}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Tổng chi phí voucher đã sử dụng
+                  Ngưỡng tồn kho: {lowStockData.threshold}
                 </p>
               </CardContent>
             </Card>

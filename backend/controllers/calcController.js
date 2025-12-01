@@ -30,32 +30,24 @@ exports.getBranchRevenue = async (req, res) => {
   }
 };
 
-exports.getBranchDiscountExpense = async (req, res) => {
+exports.checkLowStock = async (req, res) => {
   try {
-    const { branchId, startDate, endDate } = req.query;
+      const { branchId, threshold } = req.query;
 
-    if (!branchId || !startDate || !endDate) {
-      return res.status(400).json({ 
-        error: "Thiếu tham số: branchId, startDate, endDate" 
-      });
-    }
+      if (!branchId || !threshold) {
+          return res.status(400).json({ error: "Thiếu tham số: branchId và threshold" });
+      }
 
-    const expense = await calcService.calculateBranchDiscountExpense(
-      parseInt(branchId),
-      startDate,
-      endDate
-    );
+      const resultMessage = await calcService.checkLowStockFoods(
+          parseInt(branchId),
+          parseInt(threshold)
+      );
 
-    res.json({ 
-      branchId: parseInt(branchId),
-      startDate,
-      endDate,
-      discountExpense: parseFloat(expense)
-    });
+      res.json({ message: resultMessage });
   } catch (error) {
-    console.error("Error calculating discount expense:", error);
-    res.status(500).json({ 
-      error: error.message || "Lỗi tính toán chi phí giảm giá" 
-    });
+      console.error("Error checking low stock:", error);
+      res.status(500).json({ 
+          error: error.message || error.sqlMessage || "Lỗi kiểm tra tồn kho" 
+      });
   }
 };
