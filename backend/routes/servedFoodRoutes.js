@@ -67,8 +67,6 @@ router.post('/', upload.single('image'), (req, res) => {
 
 
 
-
-
 router.patch('/:id', upload.single('image'), (req, res) => {
   const foodId = req.params.id;
   const data = req.body || {};
@@ -100,33 +98,24 @@ router.patch('/:id', upload.single('image'), (req, res) => {
 });
 
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const foodId = req.params.id;
 
-  db.beginTransaction(err => {
-    if (err) return res.status(500).json({ error: "Không thể bắt đầu transaction" });
+  try {
+    const [result] = await db.promise().query(
+      "CALL Delete_Food(?);",
+      [foodId]
+    );
 
-    // Xóa khỏi đơn hàng trước
-    db.query('DELETE FROM Order_fooddy WHERE Food_ID = ?', [foodId], (err) => {
-      if (err) return db.rollback(() => res.status(500).json({ error: "Không thể xóa khỏi đơn hàng" }));
-
-      // Xóa khỏi menu (Has)
-      db.query('DELETE FROM Has WHERE Food_ID = ?', [foodId], (err) => {
-        if (err) return db.rollback(() => res.status(500).json({ error: "Không thể xóa khỏi menu" }));
-
-        // Xóa món ăn
-        db.query('DELETE FROM ServedFood WHERE Food_ID = ?', [foodId], (err) => {
-          if (err) return db.rollback(() => res.status(500).json({ error: "Không thể xóa món ăn" }));
-
-          db.commit(err => {
-            if (err) return db.rollback(() => res.status(500).json({ error: "Lỗi commit" }));
-            res.json({ message: `Đã xóa món ăn ID ${foodId}` });
-          });
-        });
-      });
+    res.status(200).json({
+      message: "Đã xóa món ăn thành công",
+      result
     });
-  });
-});
 
+  } catch (err) {
+    console.error("Lỗi khi xóa:", err);
+    res.status(500).json({ message: "Lỗi server", error: err });
+  }
+});
 
 module.exports = router;
