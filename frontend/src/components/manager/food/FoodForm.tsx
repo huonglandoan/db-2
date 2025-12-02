@@ -5,14 +5,15 @@ import { Label } from "../../ui/label";
 import { Upload, X } from "lucide-react";
 import { ImageWithFallback } from "../../resize/ImageWithFallback";
 import type { Food } from "../food/ManagerFood";
+
+const API_BASE_URL = "http://localhost:3000";
 interface FoodFormProps {
   currentBranchId: string | null;
   categories: string[];
-  foodData?: Food; // nếu có thì là update
-  onAdded: (food: any) => void;
+  foodData?: Food; // Nếu có thì là update
+  onAdded: (food: Food) => void;
   onClose: () => void;
 }
-
 
 export function FoodForm({ currentBranchId, categories, foodData, onAdded, onClose }: FoodFormProps) {
   const [name, setName] = useState(foodData?.name ?? "");
@@ -22,21 +23,27 @@ export function FoodForm({ currentBranchId, categories, foodData, onAdded, onClo
   const [status, setStatus] = useState(foodData?.status ?? "Available");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(foodData?.image ?? null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   useEffect(() => {
-    // Khi props `food` thay đổi (mở món khác để edit) thì cập nhật state
-    if (foodData) {
-      setName(foodData.name);
-      setPrice(foodData.price);
-      setCategory(foodData.category);
-      setQuantity(foodData.quantity);
-      setStatus(foodData.status);
-      setImagePreview(foodData.image);
-      setImageFile(null);
-    }
-  }, [foodData]);
+  if (foodData) {
+    setName(foodData.name);
+    setPrice(foodData.price);
+    setCategory(foodData.category);
+    setQuantity(foodData.quantity);
+    setImagePreview(foodData.image);
+    setImageFile(null);
+  }
+}, [foodData]);
 
-  const handleImageChange = (file: File | null) => {
+useEffect(() => {
+  if (!imageFile) return;
+  const url = URL.createObjectURL(imageFile);
+  setImagePreview(url);
+  return () => URL.revokeObjectURL(url);
+}, [imageFile]);
+
+const handleImageChange = (file: File | null) => {
   if (file) {
     setImageFile(file);
   } else {
@@ -44,66 +51,36 @@ export function FoodForm({ currentBranchId, categories, foodData, onAdded, onClo
     setImagePreview(null);
   }
 };
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!imageFile) return;
-    const url = URL.createObjectURL(imageFile);
-    setImagePreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [imageFile]);
-
-  const mapStatusToDB = (s: string) => (s === "Available" ? "Còn hàng" : "Hết hàng");
-
-  const handleAdd = async (): Promise<Food> => {
-  const fd = new FormData();
-  fd.append("name", name);
-  fd.append("price", String(price || 0));
-  fd.append("category", category);
-  fd.append("quantity", String(quantity || 0));
-  fd.append("status", mapStatusToDB(status));
-  if (imageFile) fd.append("image", imageFile);
-
-  const response = await fetch("http://localhost:3000/food", { method: "POST", body: fd });
-  if (!response.ok) throw new Error(await response.text());
-  const data = await response.json();
-
-  return {
-    id: String(data.Food_ID),
-    name: data.Food_name,
-    category: data.Category,
-    price: data.Unit_price,
-    quantity: data.Quantity,
-    status: data.Availability_status,
-    image: data.Image,
-    branchId: currentBranchId!,
-  };
-};
-
-const handleUpdate = async (): Promise<Food> => {
-  if (!foodData?.id) throw new Error("Không xác định món ăn");
+const handleAddOrUpdate = async (): Promise<Food> => {
+  if (!currentBranchId) throw new Error("Chi nhánh không xác định");
 
   const fd = new FormData();
   fd.append("name", name);
   fd.append("price", String(price || 0));
   fd.append("category", category);
   fd.append("quantity", String(quantity || 0));
-  fd.append("status", mapStatusToDB(status));
+  fd.append("branchId", currentBranchId);
   if (imageFile) fd.append("image", imageFile);
 
-  const response = await fetch(`http://localhost:3000/food/${foodData.id}`, { method: "PATCH", body: fd });
+  const url = foodData ? `http://localhost:3000/food/${foodData.id}` : "http://localhost:3000/food";
+  const method = foodData ? "PATCH" : "POST";
+
+  const response = await fetch(url, { method, body: fd });
   if (!response.ok) throw new Error(await response.text());
-  const data = await response.json();
+
+  const updatedFood = await response.json(); // backend trả món vừa thêm/cập nhật
+  if (!updatedFood || !updatedFood.Food_ID) throw new Error("Không tìm thấy món ăn vừa thêm/cập nhật");
 
   return {
-    id: String(data.Food_ID ?? foodData.id),
-    name: data.Food_name ?? name,
-    category: data.Category ?? category,
-    price: data.Unit_price ?? price,
-    quantity: data.Quantity ?? quantity,
-    status: data.Availability_status ?? status,
-    image: data.Image ?? imagePreview ?? "",
-    branchId: currentBranchId ?? foodData.branchId,
+    id: String(updatedFood.Food_ID),
+    name: updatedFood.Food_name,
+    category: updatedFood.Category,
+    price: updatedFood.Unit_price,
+    quantity: updatedFood.Quantity,
+    status: updatedFood.Availability_status, // lấy trực tiếp từ backend
+    image: updatedFood.Image,
+    branchId: currentBranchId,
   };
 };
 
@@ -112,17 +89,10 @@ const handleSubmit = async (e: React.FormEvent) => {
   setIsSubmitting(true);
 
   try {
-    let food: Food;
-    if (foodData) {
-      food = await handleUpdate();
-      alert("Cập nhật món ăn thành công!");
-    } else {
-      food = await handleAdd();
-      alert("Thêm món ăn thành công!");
-    }
-
-    onAdded(food); // cập nhật state parent
-    onClose();     // đóng dialog
+    const food = await handleAddOrUpdate();
+    onAdded(food); // cập nhật state parent ngay lập tức
+    onClose();
+    alert(foodData ? "Cập nhật món ăn thành công!" : "Thêm món ăn thành công!");
   } catch (err) {
     console.error(err);
     alert(foodData ? "Cập nhật món thất bại." : "Thêm món thất bại.");
@@ -130,7 +100,6 @@ const handleSubmit = async (e: React.FormEvent) => {
     setIsSubmitting(false);
   }
 };
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>

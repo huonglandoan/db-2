@@ -24,141 +24,61 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 
-// GET: Lấy món ăn theo branch
-router.get('/', (req, res) => {
-  const branchId = req.query.branchId;
-  if (!branchId) return res.status(400).json({ error: "Thiếu branchId" });
-
-  const sql = `
-    SELECT sf.*
-    FROM ServedFood sf
-    WHERE sf.Food_ID IN (
-      SELECT Food_ID
-      FROM Has_food
-      WHERE Branch_ID = ?
-    )
-  `;
-
-  db.query(sql, [branchId], (err, results) => {
-    if (err) {
-      console.error("GET error:", err);
-      return res.status(500).json({ error: "Lỗi khi lấy dữ liệu Food" });
-    }
-
-    console.log("foods returned:", results);
-    res.json(results);
-  });
-});
-
-
 router.post('/', upload.single('image'), (req, res) => {
   const data = req.body || {};
-
   const name     = data.name;
   const price    = Number(data.price);
   const category = data.category;
   const quantity = Number(data.quantity ?? 0);
   const status   = data.status || "Còn hàng";
   const branchId = data.branchId;
-
-  const imagePath = req.file
-    ? `/uploads/${req.file.filename}`
-    : "";
+  const imagePath = req.file ? `/uploads/${req.file.filename}` : "";
 
   if (!name || isNaN(price) || !category || !branchId) {
-    return res.status(400).json({
-      error: "Thiếu thông tin bắt buộc (name, price, category, branchId)"
-    });
+    return res.status(400).json({ error: "Thiếu thông tin bắt buộc" });
   }
 
-  // 1️⃣ Thêm món
-  const insertFoodSql = `
-    INSERT INTO ServedFood
-    (Food_name, Unit_price, Availability_status, Image, Quantity, Category)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `;
+  const sql = "CALL Add_Food(?, ?, ?, ?, ?, ?, ?, @newFoodId)";
+  db.query(sql, [name, price, status, imagePath, quantity, category, branchId], (err) => {
+    if (err) return res.status(500).json({ error: "Thêm món thất bại" });
 
-  db.query(insertFoodSql,
-    [name, price, status, imagePath, quantity, category],
-    (err, result) => {
-      if (err) {
-        console.error("Insert ServedFood error:", err);
-        return res.status(500).json({ error: "Thêm món ăn thất bại" });
-      }
-
-      const foodId = result.insertId;
-
-      // 2️⃣ Gán món cho chi nhánh
-      const insertHasFoodSql = `
-        INSERT INTO Has_food (Food_ID, Branch_ID)
-        VALUES (?, ?)
-      `;
-
-      db.query(insertHasFoodSql, [foodId, branchId], (err2) => {
-        if (err2) {
-          console.error("Insert Has_food error:", err2);
-          return res.status(500).json({ error: "Không gán được món cho chi nhánh" });
-        }
-
-        res.status(201).json({
-          message: "Thêm món ăn thành công",
-          Food_ID: foodId,
-          Branch_ID: branchId
-        });
-      });
-    }
-  );
+    // Lấy chi tiết món ăn vừa thêm
+    db.query("SELECT * FROM ServedFood ORDER BY Food_ID DESC LIMIT 1", (err2, rows) => {
+      if (err2 || !rows[0]) return res.status(500).json({ error: "Không tìm thấy món ăn vừa thêm" });
+      res.status(201).json(rows[0]);
+    });
+  });
 });
+
+
 
 
 router.patch('/:id', upload.single('image'), (req, res) => {
   const foodId = req.params.id;
   const data = req.body || {};
+  const imagePath = req.file ? `/uploads/${req.file.filename}` : data.image || "";
 
-  // Lấy món ăn hiện tại từ DB
-  db.query('SELECT * FROM ServedFood WHERE Food_ID = ?', [foodId], (err, results) => {
-    if (err || results.length === 0) {
-      return res.status(500).json({ error: "Không tìm thấy món ăn" });
+  const sql = "CALL Update_Food(?, ?, ?, ?, ?, ?)";
+
+  const params = [
+    foodId,
+    data.name,
+    Number(data.price),
+    Number(data.quantity),
+    imagePath,
+    data.category
+  ];
+
+  db.query(sql, params, (err) => {
+    if (err) {
+      console.error("Update_Food procedure error:", err);
+      return res.status(500).json({ error: "Cập nhật món ăn thất bại" });
     }
 
-    const current = results[0];
-
-    const name     = data.name ?? current.Food_name;
-    const price    = data.price ?? current.Unit_price;
-    const category = data.category ?? current.Category;
-    const quantity = Number(data.quantity ?? current.Quantity);
-    const status   = data.status ?? current.Availability_status;
-    const imagePath = req.file 
-      ? `/uploads/${req.file.filename}`
-      : current.Image; // giữ ảnh cũ nếu không upload mới
-
-    const sql = `
-  UPDATE ServedFood
-  SET Food_name = ?, Unit_price = ?, Availability_status = ?, Quantity = ?, Category = ?
-  ${req.file ? ", Image = ?" : ""}
-  WHERE Food_ID = ?
-`;
-
-
-    const params = req.file
-  ? [name, price, status, quantity, category, imagePath, foodId]
-  : [name, price, status, quantity, category, foodId];
-
-    db.query(sql, params, (err, result) => {
-      if (err) {
-        console.error("Update error:", err);
-        return res.status(500).json({ error: "Cập nhật món ăn thất bại" });
-      }
-
-      res.json({
-        Food_ID: foodId,
-        Food_name: name,
-        Unit_price: price,
-        Availability_status: status,
-        Image: imagePath,
-        Quantity: quantity,
-        Category: category
-      });
+    // Lấy lại món ăn vừa update để trả về frontend
+    db.query("SELECT * FROM ServedFood WHERE Food_ID = ?", [foodId], (err2, rows) => {
+      if (err2) return res.status(500).json({ error: "Lỗi lấy dữ liệu món ăn" });
+      res.json(rows[0]);
     });
   });
 });
