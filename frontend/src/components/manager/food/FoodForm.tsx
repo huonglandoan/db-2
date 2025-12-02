@@ -67,7 +67,11 @@ const handleAddOrUpdate = async (): Promise<Food> => {
   const method = foodData ? "PATCH" : "POST";
 
   const response = await fetch(url, { method, body: fd });
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) {
+    
+    const errorData = await response.json().catch(() => ({ error: "Lỗi không xác định." }));
+    throw new Error(errorData.error || `Lỗi ${response.status}: Vui lòng thử lại.`);
+  }
 
   const updatedFood = await response.json(); // backend trả món vừa thêm/cập nhật
   if (!updatedFood || !updatedFood.Food_ID) throw new Error("Không tìm thấy món ăn vừa thêm/cập nhật");
@@ -95,7 +99,11 @@ const handleSubmit = async (e: React.FormEvent) => {
     alert(foodData ? "Cập nhật món ăn thành công!" : "Thêm món ăn thành công!");
   } catch (err) {
     console.error(err);
-    alert(foodData ? "Cập nhật món thất bại." : "Thêm món thất bại.");
+    const errorMessage = err instanceof Error 
+      ? err.message // Lấy thông báo lỗi chi tiết từ trigger (VD: "Giá món ăn phải >= 0")
+      : foodData ? "Cập nhật món thất bại." : "Thêm món thất bại."; // Thông báo chung nếu không phải Error
+
+    alert(errorMessage);
   } finally {
     setIsSubmitting(false);
   }
