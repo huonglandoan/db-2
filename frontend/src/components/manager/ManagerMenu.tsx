@@ -78,7 +78,7 @@ export function ManagerMenu({ currentBranchId, currentAddress }: ManagerMenuProp
 
   const isPast = selectedDate < getTodayString();
 
-  // Đảm bảo selectedBranchId luôn = currentBranchId (không cho đổi)
+
   useEffect(() => {
     if (currentBranchId && selectedBranchId !== currentBranchId) {
       setSelectedBranchId(currentBranchId);
@@ -94,13 +94,12 @@ export function ManagerMenu({ currentBranchId, currentAddress }: ManagerMenuProp
 
     const fetchAvailableFoods = async () => {
       try {
-        // Dùng endpoint /food giống như ManagerFood
         const res = await fetch(
         `${API_BASE_URL}/menu/available-foods?branchId=${selectedBranchId}`
       );
         if (!res.ok) throw new Error("Lỗi tải món ăn");
         const data = await res.json();
-        
+        console.log("Dữ liệu thô từ API:", data);
         // Map dữ liệu về format giống với interface Food
         const mappedFoods: Food[] = data.map((r: any) => ({
           Food_ID: r.Food_ID,
@@ -112,8 +111,7 @@ export function ManagerMenu({ currentBranchId, currentAddress }: ManagerMenuProp
           Availability_status: r.Availability_status,
         }));
         
-        // Chỉ lấy các món có status = 'Còn hàng'
-        setAvailableFoods(mappedFoods.filter(f => f.Availability_status === 'Còn hàng'));
+        setAvailableFoods(mappedFoods);
       } catch (err) {
         console.error(err);
         setAvailableFoods([]);
@@ -275,20 +273,27 @@ export function ManagerMenu({ currentBranchId, currentAddress }: ManagerMenuProp
 
     setSelectedBranchId(String(menu.Branch_ID));
     let cleanDate = "";
+    
+    // ⭐️ SỬA ĐỔI LOGIC XỬ LÝ NGÀY THÁNG ⭐️
     if (typeof menu.Date_menu === 'string') {
+      // Nếu là chuỗi ISO đã có T, cắt T[0] là cách tốt nhất để lấy ngày
       cleanDate = menu.Date_menu.split('T')[0];
     } else {
+      // Nếu là đối tượng Date, sử dụng các phương thức UTC
       const d = new Date(menu.Date_menu);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
+      
+      // Đảm bảo lấy ngày, tháng, năm theo UTC để tránh dịch chuyển múi giờ
+      const year = d.getUTCFullYear();
+      const month = String(d.getUTCMonth() + 1).padStart(2, "0"); // getUTCMonth() là 0-indexed
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      
       cleanDate = `${year}-${month}-${day}`;
     }
 
     setSelectedDate(cleanDate);
     setSelectedShift(menu.Shift as ShiftType);
     setActiveTab("create");
-  };
+};
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);

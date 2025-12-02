@@ -171,8 +171,6 @@ CREATE TABLE Transaction_log (
 
 
 
-
-
 -- Bảng thành phần nguyên liệu
 CREATE TABLE Ingredient (
     Ingredient_ID INT PRIMARY KEY,

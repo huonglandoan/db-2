@@ -3,76 +3,48 @@ const express = require("express");
 const router = express.Router();
 const db = require("../dbConfig"); // kết nối MySQL
 
-// GET /menu/available-foods?branchId=1 - Lấy món ăn đã từng có trong menu của chi nhánh
-router.get("/available-foods", (req, res) => {
+router.get("/available-foods", async (req, res) => {
   const { branchId } = req.query;
-
+  
   if (!branchId) {
-    return res.status(400).json({ error: "branchId là bắt buộc" });
+    return res.status(400).json({ error: "Thiếu branchId" });
   }
 
-  // Lấy các món đã từng có trong menu của chi nhánh này (từ bảng Has)
-  const sql = `
-    SELECT DISTINCT
-      sf.Food_ID,
-      sf.Food_name,
-      sf.Unit_price,
-      sf.Availability_status,
-      sf.Image,
-      sf.Quantity,
-      sf.Category
-    FROM ServedFood sf
-    INNER JOIN Has h ON sf.Food_ID = h.Food_ID
-    WHERE h.Branch_ID = ?
-      AND sf.Availability_status = 'Còn hàng'
-    ORDER BY sf.Food_name
-  `;
-
-  db.query(sql, [branchId], (err, results) => {
-    if (err) {
-      console.error("DB ERROR:", err);
-      return res.status(500).json({ error: "Lỗi tải danh sách món ăn" });
-    }
-    res.json(results);
-  });
+  try {
+    const [results] = await db.promise().query("CALL Get_Foods_available(?)", [branchId]);
+    
+    res.json(results[0]); 
+  } catch (err) {
+    console.error("Get_Foods_available error:", err);
+    handleMysqlError(res, err);
+  }
 });
 
-// GET /menu/items?branchId=1&date=2025-11-24&shift=Sáng
-// Lấy danh sách món trong menu của một ca cụ thể
-router.get("/items", (req, res) => {
+router.get("/items", async (req, res) => { // ⭐️ Thêm async
   const { branchId, date, shift } = req.query;
 
   if (!branchId || !date || !shift) {
     return res.status(400).json({ error: "Thiếu tham số: branchId, date, shift" });
   }
 
-  const sql = `
-    SELECT 
-      h.Food_ID,
-      f.Food_name,
-      f.Unit_price,
-      f.Availability_status,
-      f.Image,
-      f.Quantity,
-      f.Category
-    FROM Has h
-    JOIN ServedFood f ON h.Food_ID = f.Food_ID
-    WHERE h.Branch_ID = ? 
-      AND h.Date_menu = ? 
-      AND h.Shift = ?
-    ORDER BY f.Food_name
-  `;
+  const sql = "CALL Get_Menu_Items(?, ?, ?)";
+  const params = [branchId, date, shift];
 
-  db.query(sql, [branchId, date, shift], (err, results) => {
-    if (err) {
-      console.error("DB ERROR:", err);
-      return res.status(500).json({ error: "Lỗi tải menu" });
-    }
-    res.json(results);
-  });
+  try {
+    // ⭐️ Sử dụng db.promise().query và await ⭐️
+    const [results] = await db.promise().query(sql, params);
+    
+    // Stored Procedure trả về mảng lồng nhau, kết quả nằm ở vị trí [0]
+    res.json(results[0]); 
+  } catch (err) {
+    console.error("Get_Menu_Items error:", err);
+    
+    // Sử dụng hàm xử lý lỗi chung đã định nghĩa trong file (nếu có)
+    handleMysqlError(res, err); 
+    
+  }
 });
 
-// POST /menu - Tạo/cập nhật menu với transaction
 router.post('/', (req, res) => {
   const { Branch_ID, Shift, Date_menu, foods } = req.body;
 
@@ -87,81 +59,53 @@ router.post('/', (req, res) => {
       return res.status(500).json({ error: 'Lỗi khởi tạo transaction' });
     }
 
-    // Bước 1: Kiểm tra và tạo Menu nếu chưa tồn tại
-    const checkMenuSql = `SELECT * FROM Menu WHERE Branch_ID = ? AND Shift = ? AND Date_menu = ?`;
-    db.query(checkMenuSql, [Branch_ID, Shift, Date_menu], (err, results) => {
+    // ⭐️ BƯỚC 1: Gọi SP để tạo Menu và XÓA món cũ trong Has ⭐️
+    // Chúng ta không dùng db.promise() nữa, chỉ dùng db.query()
+    const manageMenuSql = "CALL Manage_Menu_Base(?, ?, ?)";
+    db.query(manageMenuSql, [Branch_ID, Shift, Date_menu], (err, results) => {
       if (err) {
         return db.rollback(() => {
-          console.error("Check menu error:", err);
-          res.status(500).json({ error: 'Lỗi kiểm tra menu' });
+          console.error("Manage_Menu_Base error:", err);
+          res.status(500).json({ error: 'Lỗi quản lý menu cơ sở' });
         });
       }
 
-      // Nếu chưa có Menu, tạo mới
-      if (results.length === 0) {
-        const insertMenuSql = `INSERT INTO Menu (Branch_ID, Shift, Date_menu) VALUES (?, ?, ?)`;
-        db.query(insertMenuSql, [Branch_ID, Shift, Date_menu], (err) => {
+      // BƯỚC 2: Thêm các món mới
+      if (foods && foods.length > 0) {
+        const values = foods.map(f => {
+          const foodId = typeof f === 'object' ? f.foodId : f;
+          return [foodId, Branch_ID, Shift, Date_menu];
+        });
+
+        const insertHasSql = `INSERT INTO Has (Food_ID, Branch_ID, Shift, Date_menu) VALUES ?`;
+        db.query(insertHasSql, [values], (err) => {
           if (err) {
             return db.rollback(() => {
-              console.error("Insert menu error:", err);
-              res.status(500).json({ error: 'Tạo menu thất bại' });
+              console.error("Insert Has error:", err);
+              res.status(500).json({ error: 'Thêm món vào menu thất bại' });
             });
           }
-          proceedWithHas();
-        });
-      } else {
-        proceedWithHas();
-      }
-    });
 
-    // Bước 2: Xóa tất cả món cũ trong Has, sau đó thêm món mới
-    function proceedWithHas() {
-      // Xóa tất cả món cũ
-      const deleteHasSql = `DELETE FROM Has WHERE Branch_ID = ? AND Shift = ? AND Date_menu = ?`;
-      db.query(deleteHasSql, [Branch_ID, Shift, Date_menu], (err) => {
-        if (err) {
-          return db.rollback(() => {
-            console.error("Delete Has error:", err);
-            res.status(500).json({ error: 'Xóa món cũ thất bại' });
-          });
-        }
-
-        // Thêm các món mới
-        if (foods && foods.length > 0) {
-          const values = foods.map(f => {
-            const foodId = typeof f === 'object' ? f.foodId : f;
-            return [foodId, Branch_ID, Shift, Date_menu];
-          });
-
-          const insertHasSql = `INSERT INTO Has (Food_ID, Branch_ID, Shift, Date_menu) VALUES ?`;
-          db.query(insertHasSql, [values], (err) => {
+          // BƯỚC 3: Commit transaction
+          db.commit((err) => {
             if (err) {
               return db.rollback(() => {
-                console.error("Insert Has error:", err);
-                res.status(500).json({ error: 'Thêm món vào menu thất bại' });
+                console.error("Commit error:", err);
+                res.status(500).json({ error: 'Lỗi lưu menu' });
               });
             }
-
-            // Commit transaction
-            db.commit((err) => {
-              if (err) {
-                return db.rollback(() => {
-                  console.error("Commit error:", err);
-                  res.status(500).json({ error: 'Lỗi lưu menu' });
-                });
-              }
-              res.status(201).json({ 
-                message: 'Lưu menu thành công',
-                branchId: Branch_ID, 
-                shift: Shift, 
-                date: Date_menu, 
-                foods 
-              });
+            res.status(201).json({ 
+              message: 'Lưu menu thành công',
+              branchId: Branch_ID, 
+              shift: Shift, 
+              date: Date_menu, 
+              foods 
             });
           });
-        } else {
-          // Không có món nào, chỉ commit
-          db.commit((err) => {
+        });
+      } else {
+        // Không có món nào, chỉ commit
+        db.commit((err) => {
             if (err) {
               return db.rollback(() => {
                 console.error("Commit error:", err);
@@ -175,48 +119,24 @@ router.post('/', (req, res) => {
               date: Date_menu, 
               foods: [] 
             });
-          });
-        }
-      });
-    }
+        });
+      }
+    });
   });
 });
+           
 
-// GET /menu?branchId=2 - Giữ nguyên endpoint cũ để tương thích
-router.get("/", (req, res) => {
+// GET /menu?branchId=2 - Tải toàn bộ lịch trình menu đã thiết lập
+router.get("/", async (req, res) => {
   const { branchId } = req.query;
 
   if (!branchId) return res.status(400).json({ error: "branchId là bắt buộc" });
 
-  const sql = `
-    SELECT 
-      m.Branch_ID,
-      m.Shift,
-      m.Date_menu,
-      h.Food_ID,
-      f.Food_name,
-      f.Unit_price,
-      f.Availability_status,
-      f.Image,
-      f.Category
-    FROM Menu m
-    LEFT JOIN Has h
-      ON m.Branch_ID = h.Branch_ID
-      AND m.Shift = h.Shift
-      AND m.Date_menu = h.Date_menu
-    LEFT JOIN ServedFood f
-      ON h.Food_ID = f.Food_ID
-    WHERE m.Branch_ID = ?
-    ORDER BY m.Date_menu DESC, m.Shift, h.Food_ID
-  `;
+  try {
+    // ⭐️ GỌI STORED PROCEDURE MỚI ⭐️
+    const [results] = await db.promise().query("CALL Get_All_Branch_Menus(?)", [branchId]);
+    const rows = results[0]; // Lấy mảng dữ liệu thực tế
 
-  db.query(sql, [branchId], (err, rows) => {
-    if (err) {
-      console.error("DB ERROR:", err);
-      return res.status(500).json({ error: "Lỗi tải menu" });
-    }
-
-    // Gom nhóm menu theo ca và ngày
     const menuMap = {};
     rows.forEach(r => {
       const key = `${r.Branch_ID}-${r.Shift}-${r.Date_menu}`;
@@ -241,7 +161,37 @@ router.get("/", (req, res) => {
     });
 
     res.json(Object.values(menuMap));
-  });
+  } catch (err) {
+    console.error("Get_All_Branch_Menus error:", err);
+    handleMysqlError(res, err);
+  }
 });
 
+router.get("/items", async (req, res) => {
+  const { branchId, date, shift } = req.query;
+
+  if (!branchId || !date || !shift) {
+    return res.status(400).json({ error: "Thiếu tham số: branchId, date, shift" });
+  }
+
+  // Khai báo lệnh gọi Stored Procedure
+  const sql = "CALL Get_Menu_Items_Detail(?, ?, ?)";
+  const params = [branchId, date, shift]; // Thứ tự tham số phải khớp với SP
+
+  try {
+    // Sử dụng db.promise().query và await
+    const [results] = await db.promise().query(sql, params);
+    
+    res.json(results[0]); 
+  } catch (err) {
+    console.error("Get_Menu_Items_Detail error:", err);
+    
+    // Sử dụng hàm xử lý lỗi chung (giả sử nó có sẵn)
+    if (typeof handleMysqlError === 'function') {
+        handleMysqlError(res, err); 
+    } else {
+        res.status(500).json({ error: "Lỗi tải menu" });
+    }
+  }
+});
 module.exports = router;
