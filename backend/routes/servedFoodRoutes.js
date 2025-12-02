@@ -24,86 +24,91 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 
-// >>> GET: Lấy tất cả món ăn <<< 
+// GET: Lấy món ăn theo branch
 router.get('/', (req, res) => {
-  const sql = `SELECT * FROM ServedFood`;
+  const branchId = req.query.branchId;
+  if (!branchId) return res.status(400).json({ error: "Thiếu branchId" });
 
-  db.query(sql, (err, results) => {
+  const sql = `
+    SELECT sf.*
+    FROM ServedFood sf
+    WHERE sf.Food_ID IN (
+      SELECT Food_ID
+      FROM Has_food
+      WHERE Branch_ID = ?
+    )
+  `;
+
+  db.query(sql, [branchId], (err, results) => {
     if (err) {
       console.error("GET error:", err);
       return res.status(500).json({ error: "Lỗi khi lấy dữ liệu Food" });
     }
+
+    console.log("foods returned:", results);
     res.json(results);
   });
 });
 
 
-// >>> POST: Thêm món ăn mới + tạo menu mặc định shift Sáng <<< 
 router.post('/', upload.single('image'), (req, res) => {
   const data = req.body || {};
 
-  const name     = data.name || null;
-  const price    = Number(data.price ?? null);
-  const category = data.category || null;
+  const name     = data.name;
+  const price    = Number(data.price);
+  const category = data.category;
   const quantity = Number(data.quantity ?? 0);
   const status   = data.status || "Còn hàng";
-  const branchId = data.branchId; // chi nhánh quản lý món này
+  const branchId = data.branchId;
 
-  const imagePath = req.file 
+  const imagePath = req.file
     ? `/uploads/${req.file.filename}`
     : "";
 
-  if (!name || price == null || !category || !branchId) {
+  if (!name || isNaN(price) || !category || !branchId) {
     return res.status(400).json({
       error: "Thiếu thông tin bắt buộc (name, price, category, branchId)"
     });
   }
 
-  // Bước 1: Thêm món mới vào ServedFood
+  // 1️⃣ Thêm món
   const insertFoodSql = `
     INSERT INTO ServedFood
     (Food_name, Unit_price, Availability_status, Image, Quantity, Category)
     VALUES (?, ?, ?, ?, ?, ?)
   `;
-  const params = [name, price, status, imagePath, quantity, category];
 
-  db.query(insertFoodSql, params, (err, result) => {
-    if (err) {
-      console.error("Insert error:", err);
-      return res.status(500).json({ error: "Thêm món ăn thất bại" });
-    }
+  db.query(insertFoodSql,
+    [name, price, status, imagePath, quantity, category],
+    (err, result) => {
+      if (err) {
+        console.error("Insert ServedFood error:", err);
+        return res.status(500).json({ error: "Thêm món ăn thất bại" });
+      }
 
-    const newFoodId = result.insertId;
+      const foodId = result.insertId;
 
-    // Bước 2: Tạo record Has cho menu mặc định: shift Sáng hôm nay
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const insertHasSql = `
-      INSERT INTO Has (Food_ID, Branch_ID, Shift, Date_menu)
-      VALUES (?, ?, 'Sáng', ?)
-    `;
-    db.query(insertHasSql, [newFoodId, branchId, today], (err2) => {
-      if (err2) console.error('Không tạo menu mặc định:', err2);
+      // 2️⃣ Gán món cho chi nhánh
+      const insertHasFoodSql = `
+        INSERT INTO Has_food (Food_ID, Branch_ID)
+        VALUES (?, ?)
+      `;
 
-      // Bước 3: Trả về món mới
-      res.status(201).json({
-        message: "Thêm món ăn thành công",
-        Food_ID: newFoodId,
-        Food_name: name,
-        Unit_price: price,
-        Availability_status: status,
-        Image: imagePath,
-        Quantity: quantity,
-        Category: category,
-        defaultMenu: {
-          Branch_ID: branchId,
-          Shift: 'Sáng',
-          Date_menu: today
+      db.query(insertHasFoodSql, [foodId, branchId], (err2) => {
+        if (err2) {
+          console.error("Insert Has_food error:", err2);
+          return res.status(500).json({ error: "Không gán được món cho chi nhánh" });
         }
-      });
-    });
-  });
-});
 
+        res.status(201).json({
+          message: "Thêm món ăn thành công",
+          Food_ID: foodId,
+          Branch_ID: branchId
+        });
+      });
+    }
+  );
+});
 
 
 router.patch('/:id', upload.single('image'), (req, res) => {
@@ -128,13 +133,16 @@ router.patch('/:id', upload.single('image'), (req, res) => {
       : current.Image; // giữ ảnh cũ nếu không upload mới
 
     const sql = `
-      UPDATE ServedFood
-      SET Food_name = ?, Unit_price = ?, Availability_status = ?, Quantity = ?, Category = ?
-      ${req.file ? ", Image = ?" : ""}
-      WHERE Food_ID = ?
-    `;
+  UPDATE ServedFood
+  SET Food_name = ?, Unit_price = ?, Availability_status = ?, Quantity = ?, Category = ?
+  ${req.file ? ", Image = ?" : ""}
+  WHERE Food_ID = ?
+`;
 
-    const params = [name, price, status, imagePath, quantity, category, foodId];
+
+    const params = req.file
+  ? [name, price, status, quantity, category, imagePath, foodId]
+  : [name, price, status, quantity, category, foodId];
 
     db.query(sql, params, (err, result) => {
       if (err) {

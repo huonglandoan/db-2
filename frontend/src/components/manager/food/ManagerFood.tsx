@@ -41,9 +41,11 @@ export function ManagerFood({ currentBranchId, currentAddress }: FoodManagementP
     const fetchFoods = async () => {
       if (!currentBranchId) return setFoods([]);
       try {
+        console.log("Fetching foods for branch:", currentBranchId);
         const res = await fetch(`${API_BASE_URL}/food?branchId=${currentBranchId}`);
         if (!res.ok) throw new Error("Lỗi tải món ăn");
         const data = await res.json();
+        console.log("Fetched foods:", data);
         const mapped: Food[] = data.map((r: any) => ({
           id: String(r.Food_ID ?? r.id ?? ""),
           name: r.Food_name ?? r.name ?? "",
