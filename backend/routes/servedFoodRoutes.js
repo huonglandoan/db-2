@@ -23,32 +23,48 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+router.get('/', (req, res) => {
+  const branchId = req.query.branchId;
+  if (!branchId) return res.status(400).json({ error: "Thiếu branchId" });
+
+  db.query("CALL Get_Foods(?)", [branchId], (err, results) => {
+    if (err) return res.status(500).json({ error: "Lỗi tải món ăn" });
+    res.json(results[0]);
+  });
+});
+
+
 
 router.post('/', upload.single('image'), (req, res) => {
-  const data = req.body || {};
-  const name     = data.name;
-  const price    = Number(data.price);
-  const category = data.category;
-  const quantity = Number(data.quantity ?? 0);
-  const status   = data.status || "Còn hàng";
-  const branchId = data.branchId;
+  const { name, price, category, quantity, branchId } = req.body;
   const imagePath = req.file ? `/uploads/${req.file.filename}` : "";
 
-  if (!name || isNaN(price) || !category || !branchId) {
+  if (!name || !price || !category || !branchId) {
     return res.status(400).json({ error: "Thiếu thông tin bắt buộc" });
   }
 
-  const sql = "CALL Add_Food(?, ?, ?, ?, ?, ?, ?, @newFoodId)";
-  db.query(sql, [name, price, status, imagePath, quantity, category, branchId], (err) => {
-    if (err) return res.status(500).json({ error: "Thêm món thất bại" });
+  const sql = "CALL Add_Food(?, ?, ?, ?, ?, ?, @newFoodId)";
+  const params = [name, Number(price), imagePath, Number(quantity || 0), category, Number(branchId)];
 
-    // Lấy chi tiết món ăn vừa thêm
-    db.query("SELECT * FROM ServedFood ORDER BY Food_ID DESC LIMIT 1", (err2, rows) => {
-      if (err2 || !rows[0]) return res.status(500).json({ error: "Không tìm thấy món ăn vừa thêm" });
-      res.status(201).json(rows[0]);
+  db.query(sql, params, (err) => {
+    if (err) {
+      console.error("Add_Food procedure error:", err);
+      return res.status(500).json({ error: "Thêm món thất bại" });
+    }
+
+    db.query("SELECT @newFoodId AS Food_ID", (err2, result) => {
+      if (err2) return res.status(500).json({ error: "Lấy ID thất bại" });
+      const foodId = result[0]?.Food_ID;
+      if (!foodId) return res.status(500).json({ error: "Không tìm thấy món ăn vừa thêm" });
+
+      db.query("SELECT * FROM ServedFood WHERE Food_ID = ?", [foodId], (err3, rows) => {
+        if (err3 || !rows[0]) return res.status(500).json({ error: "Không tìm thấy món ăn vừa thêm" });
+        res.status(201).json(rows[0]);
+      });
     });
   });
 });
+
 
 
 
