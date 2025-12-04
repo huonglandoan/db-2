@@ -27,4 +27,18 @@ exports.checkLowStockFoods = (branchId, threshold) => {
         });
     });
 };
+
+exports.calculateBranchTotalSalary = (branchId) => {
+  return new Promise((resolove, reject) => {
+    const sql = `SELECT Calculate_Branch_Total_Salary(?) AS totalSalary`;
+    
+    db.query(sql, [branchId], (err, results) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolove(results[0]?.totalSalary || 0);
+      }
+    });
+  })
+}
  

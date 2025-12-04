@@ -152,6 +152,65 @@ END$$
 
 DELIMITER ;
 
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS Calculate_Branch_Total_Salary $$
+
+CREATE FUNCTION Calculate_Branch_Total_Salary (
+    p_Branch_ID INT
+)
+RETURNS DECIMAL(15, 2)
+DETERMINISTIC
+BEGIN
+    -- Khai báo biến
+    DECLARE v_Total_Salary DECIMAL(15, 2) DEFAULT 0.00;
+    DECLARE v_Staff_Salary DECIMAL(10, 2);
+    DECLARE v_Staff_ID CHAR(12);
+    DECLARE v_Branch_Exists INT DEFAULT 0;
+    DECLARE v_done INT DEFAULT FALSE;
+    
+    -- Cursor: Duyệt qua lương của tất cả nhân viên thuộc chi nhánh
+    DECLARE staff_cursor CURSOR FOR
+        SELECT S.Salary, S.ID_number
+        FROM Staff S
+        JOIN User_fooddy U ON S.ID_number = U.ID_number
+        WHERE S.Branch_ID = p_Branch_ID;
+          
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_done = TRUE;
+    
+    -- 1. Kiểm tra ràng buộc: Branch ID tồn tại
+    SELECT COUNT(*) INTO v_Branch_Exists FROM Branch WHERE Branch_ID = p_Branch_ID;
+    
+    IF v_Branch_Exists = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Lỗi: Mã Chi nhánh không tồn tại.';
+        RETURN NULL;
+    END IF;
+
+    -- Mở con trỏ
+    OPEN staff_cursor;
+    
+    -- 2. Bắt đầu LOOP: Cộng dồn lương
+    read_loop: LOOP
+        FETCH staff_cursor INTO v_Staff_Salary, v_Staff_ID;
+        
+        IF v_done THEN
+            LEAVE read_loop;
+        END IF;
+        
+        -- Dùng IF để chỉ tính lương nếu nhân viên đang ở trạng thái 'Bình thường'
+        IF (SELECT Account_status FROM User_fooddy WHERE ID_number = v_Staff_ID) = 'Bình thường' THEN
+            SET v_Total_Salary = v_Total_Salary + v_Staff_Salary;
+        END IF;
+        
+    END LOOP read_loop;
+    
+    CLOSE staff_cursor;
+    
+    RETURN v_Total_Salary;
+END$$
+
+DELIMITER ;
+
 -- Một số lệnh test  
 SELECT Calculate_Branch_Revenue(1, '2025-11-21', '2025-11-30') AS Total_Revenue_CN1;
 -- Kết quả mong đợi: 175000.00 (90k gốc + 85k mới) 
@@ -160,6 +219,8 @@ SELECT Calculate_Branch_Revenue(2, '2025-11-20', '2025-11-30') AS Total_Revenue_
 
 SELECT Check_Low_Stock_Foods(1, 50) AS LowStock_Test_Warning;
 
-SELECT Check_Low_Stock_Foods(1, 0) AS LowStock_Test_Count;
+SELECT Check_Low_Stock_Foods(1, 20) AS LowStock_Test_Count;
+
+SELECT Calculate_Branch_Total_Salary(1) AS Total_Salary_CN1;
 
 SELECT Check_Low_Stock_Foods(1, -10) AS Test_Error_Threshold;

@@ -51,3 +51,29 @@ exports.checkLowStock = async (req, res) => {
       });
   }
 };
+
+exports.getBranchTotalSalary = async (req, res) => {
+  try {
+    const { branchId } = req.query;
+
+    if (!branchId) {
+      return res.status(400).json({ 
+        error: "Thiếu tham số: branchId" 
+      });
+    }
+
+    const totalSalary = await calcService.calculateBranchTotalSalary(
+      parseInt(branchId),
+    );
+
+    res.json({ 
+      branchId: parseInt(branchId),
+      totalSalary: parseFloat(totalSalary)
+    });
+  } catch (error) {
+    console.error("Error calculating total salary:", error);
+    res.status(500).json({ 
+      error: error.message || "Lỗi tính toán tổng lương nhân viên" 
+    });
+  }
+};

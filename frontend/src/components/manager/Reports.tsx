@@ -27,6 +27,11 @@ interface LowStockData {
     message: string;
 }
 
+interface SalaryData {
+  branchId: number;
+  totalSalary: number;
+}
+
 // Set mặc định ban đầu
 const formatDate = (date: Date): string => {
     const year = date.getFullYear();
@@ -44,11 +49,12 @@ const formattedStartDate = formatDate(oneMonthAgo);
 
 export function Reports() {
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState<Branch[]>("1");
+  const [selectedBranchId, setSelectedBranchId] = useState<Branch[]>([]);
   const [startDate, setStartDate] = useState<string>(formattedStartDate);
   const [endDate, setEndDate] = useState<string>(formattedEndDate);
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
   const [lowStockData, setLowStockData] = useState<LowStockData | null>(null);
+  const [salaryData, setSalaryData] = useState<SalaryData | null>(null);
   const [stockThreshold, setStockThreshold] = useState<string>("10"); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
@@ -90,20 +96,24 @@ export function Reports() {
 
     try {
       const thresholdValue = parseInt(stockThreshold) || 0;
-      const [revenueRes, stockRes] = await Promise.all([
+      const [revenueRes, stockRes, salaryRes] = await Promise.all([
         fetch(`${API_BASE}/calc/revenue?branchId=${selectedBranchId}&startDate=${startDate}&endDate=${endDate}`),
-        fetch(`${API_BASE}/calc/low-stock?branchId=${selectedBranchId}&threshold=${thresholdValue}`)
+        fetch(`${API_BASE}/calc/low-stock?branchId=${selectedBranchId}&threshold=${thresholdValue}`),
+        fetch(`${API_BASE}/calc/total-salary?branchId=${selectedBranchId}`)
       ]);
 
-      if (!revenueRes.ok || !stockRes.ok) {
+      if (!revenueRes.ok || !stockRes.ok || !salaryRes.ok) {
         const revenueErr = await revenueRes.json().catch(() => ({}));
         const stockErr = await stockRes.json().catch(() => ({}));
-        throw new Error(revenueErr.error || stockErr.error || "Lỗi tính toán");
+        const salaryErr = await salaryRes.json().catch(() => ({}));
+        throw new Error(revenueErr.error || stockErr.error || salaryErr.error|| "Lỗi tính toán");
       }
 
       const revenue = await revenueRes.json();
       const stockResult = await stockRes.json();
+      const salaryResult = await salaryRes.json();
 
+      setSalaryData(salaryResult);
       setRevenueData(revenue);
       setLowStockData({
           branchId: parseInt(selectedBranchId),
@@ -114,6 +124,7 @@ export function Reports() {
       setError(err.message || "Có lỗi xảy ra");
       setRevenueData(null);
       setLowStockData(null);
+      setSalaryData(null);
     } finally {
       setLoading(false);
     }
@@ -228,6 +239,22 @@ export function Reports() {
               </CardContent>
             </Card>
           </div>
+            <div className="grid gap-4 md:grid-cols-1">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle>Tổng lương nhân viên</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {salaryData?.totalSalary.toLocaleString('vi-VN')}đ
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Tổng lương nhân viên chi nhánh
+                </p>
+              </CardContent>
+            </Card>
+          </div>
           <div className="grid gap-4 md:grid-cols-1">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -244,6 +271,7 @@ export function Reports() {
               </CardContent>
             </Card>
           </div>
+
         </>
       )}
     </div>
