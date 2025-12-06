@@ -10,14 +10,16 @@ const API_BASE_URL = "http://localhost:3000";
 interface FoodFormProps {
   currentBranchId: string | null;
   categories: string[];
-  foodData?: Food; // Nếu có thì là update
+  foodData?: Food; 
   onAdded: (food: Food) => void;
   onClose: () => void;
 }
 
 export function FoodForm({ currentBranchId, categories, foodData, onAdded, onClose }: FoodFormProps) {
   const [name, setName] = useState(foodData?.name ?? "");
-  const [price, setPrice] = useState<number | "">(foodData?.price ?? "");
+  const [price, setPrice] = useState<string>(
+  foodData?.price != null ? String(foodData.price) : ""
+);
   const [category, setCategory] = useState(foodData?.category ?? categories[1] ?? "Món chính");
   const [quantity, setQuantity] = useState<number | "">(foodData?.quantity ?? 0);
   const [status, setStatus] = useState(foodData?.status ?? "Available");
@@ -28,7 +30,11 @@ export function FoodForm({ currentBranchId, categories, foodData, onAdded, onClo
   useEffect(() => {
   if (foodData) {
     setName(foodData.name);
-    setPrice(foodData.price);
+    setPrice(
+      foodData.price != null
+        ? String(Number(foodData.price))
+        : ""
+    );
     setCategory(foodData.category);
     setQuantity(foodData.quantity);
     setImagePreview(foodData.image);
@@ -80,7 +86,7 @@ const handleAddOrUpdate = async (): Promise<Food> => {
     id: String(updatedFood.Food_ID),
     name: updatedFood.Food_name,
     category: updatedFood.Category,
-    price: updatedFood.Unit_price,
+    price: Number(updatedFood.Unit_price),
     quantity: updatedFood.Quantity,
     status: updatedFood.Availability_status, // lấy trực tiếp từ backend
     image: updatedFood.Image,
@@ -131,7 +137,16 @@ const handleSubmit = async (e: React.FormEvent) => {
 
       <div>
         <Label htmlFor="price">Giá bán</Label>
-        <Input id="price" type="number" value={price} onChange={e => setPrice(Number(e.target.value))} />
+        <Input
+            id="price"
+            type="text"
+            inputMode="numeric"
+            value={price}
+            onChange={e => {
+              const val = e.target.value;
+              if (/^\d*$/.test(val)) setPrice(val);
+            }}
+          />
       </div>
 
       <div>
