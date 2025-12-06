@@ -6,14 +6,16 @@ import { Badge } from "../ui/badge";
 
 const API_BASE_URL = 'http://localhost:3000';
 
-interface Branch {
+export interface Branch {
   id: string;
   address: string;
   phone: string;
-  manager: string;
+  manager_id: string;
+  manager_name: string;
   status: "active" | "inactive";
   opening_hour: string;
 }
+
 
 function normalizeStatus(raw: any): "active" | "inactive" {
   if (!raw) return "inactive";
@@ -44,10 +46,12 @@ async function loadBranchesFromAPI(): Promise<Branch[]> {
       id: String(r.id),
       address: r.address ?? "",
       phone: r.phone ?? "",
-      manager: r.manager ?? "",
+      manager_id: r.manager_id ?? "",
+      manager_name: r.manager_name ?? "",
       status: normalizeStatus(r.status),
       opening_hour: r.opening_hour ?? "",
-    }));
+}));
+
 
     return mapped;
   } catch (error) {
@@ -109,7 +113,7 @@ export function ManagerBranch({ currentBranchId, onBranchChange }: BranchManagem
                     <span>{currentBranch.phone}</span>
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground">Quản lý: {currentBranch.manager}</p>
+                <p className="text-sm text-muted-foreground">Quản lý: {currentBranch.manager_name || "Chưa có"}</p>
                 <p className="text-sm text-muted-foreground">Thời gian hoạt động: {currentBranch.opening_hour}</p>
                 <p className="text-sm text-muted-foreground">Trạng thái: {currentBranch.status}</p>
               </div>
@@ -157,7 +161,7 @@ export function ManagerBranch({ currentBranchId, onBranchChange }: BranchManagem
                     <Phone className="h-4 w-4" />
                     <span>{branch.phone}</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">Quản lý: {branch.manager}</p>
+                  <p className="text-sm text-muted-foreground">Quản lý: {branch.manager_name || "Chưa có"}</p>
                   {isCurrent ? (
                     <Button className="w-full" disabled>
                       <Check className="mr-2 h-4 w-4" />
