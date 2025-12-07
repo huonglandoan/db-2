@@ -51,4 +51,4 @@ END$$
 DELIMITER ;
 
 -- Example call:
--- CALL GetTopSellingFoods(1);
+-- CALL GetTopSellingFoods(1,1);
