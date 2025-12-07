@@ -32,7 +32,8 @@ DROP PROCEDURE IF EXISTS GetTopSellingFoods;
 DELIMITER $$
 
 CREATE PROCEDURE GetTopSellingFoods(
-    IN p_Branch_ID INT
+   IN p_Branch_ID INT,
+   IN p_MinQuantity INT
 )
 BEGIN
     SELECT 
@@ -43,7 +44,7 @@ BEGIN
     INNER JOIN ServedFood sf ON o.Food_ID = sf.Food_ID
     WHERE o.Branch_ID = p_Branch_ID
     GROUP BY sf.Food_ID, sf.Food_name
-    HAVING SUM(o.Quantity) > 1
+    HAVING SUM(o.Quantity) > p_MinQuantity
     ORDER BY Total_Sold DESC;
 END$$
 
