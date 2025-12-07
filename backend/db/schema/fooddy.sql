@@ -1,4 +1,4 @@
-DROP DATABASE fooddy;
+DROP DATABASE IF EXISTS Fooddy;
 CREATE DATABASE Fooddy;
 USE Fooddy;
 
@@ -841,7 +841,7 @@ VALUES
 -- UIT (Branch 5)
 (20, 5), (1, 5), (2, 5), (3, 5),(21,5),(24,5),(23,5);
 
------ Test
+-- Test
 
 -- 1. THÊM VOUCHER MỚI (Cho CN 1 & 2)
 INSERT INTO Voucher (Voucher_ID, Description_voucher, Discount_value, Status_voucher, Date_start, Date_end, Branch_ID)
