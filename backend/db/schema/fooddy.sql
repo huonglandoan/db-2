@@ -5,7 +5,7 @@ USE Fooddy;
 
 -- Bảng chi nhánh
 CREATE TABLE Branch (
-    Branch_ID INT AUTO_INCREMENT PRIMARY KEY,
+    Branch_ID INT PRIMARY KEY AUTO_INCREMENT,
     Address VARCHAR(255) NOT NULL,
     Contact_number VARCHAR(10) NOT NULL
         CHECK (Contact_number REGEXP '^[0-9]{10}$'),
@@ -78,7 +78,8 @@ CREATE TABLE Shift_type(
 
 -- Bảng ví
 CREATE TABLE Wallet (
-    Wallet_ID CHAR(8) PRIMARY KEY DEFAULT (LEFT(UUID(), 8)),
+    Wallet_ID CHAR(8) PRIMARY KEY
+        CHECK (Wallet_ID REGEXP '^[0-9]{8}$'),
     Customer_ID_number CHAR(12) NOT NULL,
     Balance DECIMAL(10,2) NOT NULL
         CHECK (Balance >= 0),
@@ -91,7 +92,7 @@ CREATE TABLE Wallet (
 
 -- Bảng thanh toán
 CREATE TABLE Payment (
-    Payment_ID CHAR(8) PRIMARY KEY DEFAULT (LEFT(UUID(), 8)),
+    Payment_ID INT PRIMARY KEY AUTO_INCREMENT,
     Wallet_ID CHAR(8) NOT NULL,
     Payment_type ENUM('Nạp tiền', 'Chuyển tiền nội bộ', 'Thanh toán món ăn') NOT NULL,
         -- Nạp tiền, Chuyển tiền nội bộ, Thanh toán món ăn
@@ -110,7 +111,7 @@ CREATE TABLE Payment (
 
 -- Bảng voucher
 CREATE TABLE Voucher (
-    Voucher_ID CHAR(8) PRIMARY KEY DEFAULT (LEFT(UUID(), 8)),
+    Voucher_ID INT AUTO_INCREMENT PRIMARY KEY,
     Description_voucher VARCHAR(255) NOT NULL,
     Branch_ID INT NOT NULL,
     Discount_value DECIMAL(5,2) NOT NULL
@@ -150,11 +151,11 @@ CREATE TABLE Transaction_log (
 
 -- Bảng order
 CREATE TABLE Order_fooddy (
-    Order_ID CHAR(8) PRIMARY KEY DEFAULT (LEFT(UUID(), 8)),
+    Order_ID INT PRIMARY KEY AUTO_INCREMENT,
     Customer_ID_number CHAR(12) NOT NULL,
     Food_ID INT NOT NULL,
     Log_ID INT NOT NULL,
-    Payment_ID CHAR(8) NOT NULL,
+    Payment_ID INT NOT NULL,
     Branch_ID INT NOT NULL,
     Pick_up_status ENUM('Chưa nhận', 'Đã nhận', 'Đã hủy')
 		NOT NULL DEFAULT 'Chưa nhận',
@@ -163,7 +164,7 @@ CREATE TABLE Order_fooddy (
         CHECK (Price >= 0),
     Quantity INT NOT NULL
         CHECK (Quantity > 0),
-    Voucher_ID CHAR(8),
+    Voucher_ID INT,
     Order_time DATETIME NOT NULL,
     FOREIGN KEY (Food_ID) REFERENCES ServedFood(Food_ID),
     FOREIGN KEY (Customer_ID_number) REFERENCES Customer(ID_number),
@@ -430,6 +431,23 @@ BEGIN
 END$$
 
 
+CREATE TRIGGER trg_shift_unique_update
+BEFORE UPDATE ON Shift_type
+FOR EACH ROW
+BEGIN
+    IF (NEW.Shift <> OLD.Shift) OR (NEW.ID_number <> OLD.ID_number) THEN
+        IF EXISTS (
+            SELECT 1 FROM Shift_type 
+            WHERE ID_number = NEW.ID_number 
+            AND Shift = NEW.Shift
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Không thể đổi ca. Nhân viên này đã có ca làm việc đó rồi.';
+        END IF;
+    END IF;
+END$$
+
+
 CREATE TRIGGER trg_staff_startdate
 BEFORE INSERT ON Staff
 FOR EACH ROW
@@ -514,5 +532,6 @@ BEGIN
        WHERE Wallet_ID = NEW.Wallet_ID;
     END IF;
 END$$
+
 
 DELIMITER ;
