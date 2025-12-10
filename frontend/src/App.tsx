@@ -13,6 +13,7 @@ import {
   ScanLine,
   FileText,
   Settings,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "./components/ui/button";
 
@@ -37,10 +38,11 @@ import { ManagerBranch } from "./components/manager/ManagerBranch";
 import { Reports } from "./components/manager/Reports";
 import { ManagerFood } from "./components/manager/food/ManagerFood";
 import { ManagerCustomer } from "./components/manager/ManagerCustomer";
+import { TopSellingFoodsPage } from "./components/manager/TopSellingFoodsPage";
 type UserRole = "customer" | "staff" | "manager";
 type CustomerPage = "home" | "menu" | "order" | "wallet" | "order-history" | "voucher";
 type StaffPage = "scan-qr" | "transaction-log" | "profile";
-type ManagerPage = "dashboard" | "menu" | "food" | "voucher" | "customer" | "employees" | "reports" | "branch";
+type ManagerPage = "dashboard" | "menu" | "food" | "voucher" | "customer" | "employees" | "reports" | "branch" | "top-selling-foods";
 
 interface User {
   id: string;
@@ -235,6 +237,7 @@ export default function App() {
     { id: "employees" as ManagerPage, label: "Nhân viên", icon: User },
     { id: "customer" as ManagerPage, label: "Khách hàng", icon: User },
     { id: "reports" as ManagerPage, label: "Báo cáo", icon: FileText },
+    { id: "top-selling-foods" as ManagerPage, label: "Món bán chạy", icon: TrendingUp },
   ];
 
     if (user.role === "manager") {
@@ -295,6 +298,7 @@ export default function App() {
           {managerPage === "food" && <ManagerFood currentBranchId={selectedBranch ?? null} currentAddress={Address} />}
           {managerPage === "reports" && <Reports />}
           {managerPage === 'customer' && <ManagerCustomer/>}
+          {managerPage === 'top-selling-foods' && <TopSellingFoodsPage />}
         </main>
       </div>
     );

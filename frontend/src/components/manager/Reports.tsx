@@ -49,7 +49,7 @@ const formattedStartDate = formatDate(oneMonthAgo);
 
 export function Reports() {
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState<Branch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>(formattedStartDate);
   const [endDate, setEndDate] = useState<string>(formattedEndDate);
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
