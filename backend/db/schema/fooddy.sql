@@ -1,4 +1,4 @@
-DROP DATABASE fooddy;
+DROP DATABASE IF EXISTS Fooddy;
 CREATE DATABASE Fooddy;
 USE Fooddy;
 
@@ -266,7 +266,7 @@ FOR EACH ROW
 BEGIN
     DECLARE wallet_balance DECIMAL(10,2);
 
-    IF NEW.Payment_type = 'Thanh toán món ăn' THEN
+    IF NEW.Payment_type IN ('Thanh toán món ăn', 'Chuyển tiền nội bộ') THEN
         SELECT Balance INTO wallet_balance
         FROM Wallet
         WHERE Wallet_ID = NEW.Wallet_ID;
@@ -276,7 +276,7 @@ BEGIN
         END IF;
 
         IF wallet_balance < NEW.Amount THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Thanh toán không thành công. Số dư ví không đủ.';
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Giao dịch thất bại. Số dư ví không đủ để thực hiện.';
         END IF;
     END IF;
 END$$
@@ -430,7 +430,7 @@ BEGIN
 END$$
 
 
-CREATE TRIGGER trg_manager_startdate
+CREATE TRIGGER trg_staff_startdate
 BEFORE INSERT ON Staff
 FOR EACH ROW
 BEGIN
@@ -443,7 +443,7 @@ BEGIN
 
     IF NEW.Hire_date < reg_date THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Ngày bắt đầu làm quản lý phải lớn hơn hoặc bằng ngày được nhận vào làm.';
+        SET MESSAGE_TEXT = 'Ngày bắt đầu làm việc phải lớn hơn hoặc bằng ngày đăng ký tài khoản.';
     END IF;
 END$$
 
@@ -490,6 +490,7 @@ BEGIN
     END IF;
 END$$
 
+
 CREATE TRIGGER trg_restore_balance_after_payment_update
 AFTER UPDATE ON Payment
 FOR EACH ROW
@@ -504,16 +505,7 @@ BEGIN
             Last_updated = NOW()
         WHERE Wallet_ID = NEW.Wallet_ID;
     END IF;
-    IF (NEW.Payment_type = 'Nạp tiền')
-       AND (OLD.Status_fooddy = 'Thành công')
-       AND (NEW.Status_fooddy = 'Thất bại') THEN
-
-        UPDATE Wallet
-        SET Balance = Balance - OLD.Amount,
-            Last_updated = NOW()
-        WHERE Wallet_ID = NEW.Wallet_ID;
-    END IF;
-    IF (NEW.Payment_type IN ('Thanh toán món ăn', 'Chuyển tiền nội bộ'))
+    IF (NEW.Payment_type = 'Thanh toán món ăn')
        AND (NEW.Status_fooddy IN ('Thành công', 'Đang xử lý'))
        AND (NEW.Amount <> OLD.Amount) THEN
        UPDATE Wallet

@@ -14,28 +14,43 @@ function normalizeStatus(dbStatus) {
    ========================= */
 router.get('/', (req, res) => {
   const sql = `
-    SELECT Branch_ID, Address, Contact_number, Opening_hours, Branch_status, Manager_ID_number
-    FROM Branch
+    SELECT
+      b.Branch_ID,
+      b.Address,
+      b.Contact_number,
+      b.Opening_hours,
+      b.Branch_status,
+      b.Manager_ID_number,
+      u.Full_name AS Manager_name
+    FROM Branch b
+    LEFT JOIN Staff s
+      ON b.Manager_ID_number = s.ID_number
+    LEFT JOIN User_fooddy u
+      ON s.ID_number = u.ID_number
   `;
+
   db.query(sql, (err, results) => {
     if (err) {
       console.error("DB Error:", err);
       return res.status(500).json({ error: err.message });
     }
 
-    // Chuẩn hóa dữ liệu để frontend dùng
     const mapped = results.map(r => ({
       id: String(r.Branch_ID),
       address: r.Address,
       phone: r.Contact_number,
-      manager: r.Manager_ID_number ?? "",
+      opening_hour: r.Opening_hours,
       status: normalizeStatus(r.Branch_status),
-      opening_hour: r.Opening_hours
+
+      // manager
+      manager_id: r.Manager_ID_number ?? "",
+      manager_name: r.Manager_name ?? ""
     }));
 
     res.json(mapped);
   });
 });
+
 
 /* =========================
    GET: Lấy chi nhánh theo ID
