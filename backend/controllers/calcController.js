@@ -1,3 +1,4 @@
+const db = require('../dbConfig'); // Đảm bảo có import kết nối DB
 const calcService = require("../services/calcService");
 
 exports.getBranchRevenue = async (req, res) => {
@@ -76,4 +77,42 @@ exports.getBranchTotalSalary = async (req, res) => {
       error: error.message || "Lỗi tính toán tổng lương nhân viên" 
     });
   }
+};
+
+// Hàm xử lý logic gọi thủ tục GetTopSellingFoods
+exports.getTopSellingFoods = async (req, res) => {
+  console.log(">>> [DEBUG] Hàm getTopSellingFoods ĐÃ ĐƯỢC GỌI <<<");
+    // 1. Lấy tham số từ Query String
+    const { branchId, minQuantity } = req.query;
+
+    if (!branchId || !minQuantity) {
+        return res.status(400).json({ error: "Thiếu tham số: branchId và minQuantity" });
+    }
+    
+    // Kiểm tra tính hợp lệ của số lượng
+    const minQ = Number(minQuantity);
+    if (isNaN(minQ) || minQ < 0) {
+        return res.status(400).json({ error: "Tham số minQuantity không hợp lệ." });
+    }
+
+    // 2. Định nghĩa câu lệnh gọi Stored Procedure
+    const sql = "CALL GetTopSellingFoods(?, ?)";
+    const params = [Number(branchId), minQ]; // Truyền tham số
+
+    try {
+        // 3. Thực thi câu lệnh
+        const [results] = await db.promise().query(sql, params);
+
+        // Stored Procedure thường trả về mảng lồng nhau, kết quả thật nằm ở [0]
+        // Trả về một mảng chứa Food_ID, Food_name, Total_Sold
+        res.json(results[0]); 
+
+    } catch (error) {
+        console.error("Lỗi khi gọi GetTopSellingFoods:", error);
+        // Sử dụng hàm xử lý lỗi chung (nếu có) hoặc xử lý trực tiếp
+        if (error.sqlState === '45000') {
+             return res.status(400).json({ error: error.sqlMessage });
+        }
+        res.status(500).json({ error: "Lỗi hệ thống khi tải báo cáo món ăn bán chạy." });
+    }
 };
