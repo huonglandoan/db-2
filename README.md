@@ -41,7 +41,7 @@ Hiện tại phần login/xác thực xem như bỏ qua (hoặc ai rảnh thì c
 
 1. Clone repo
    ```bash
-   git clone [https://github.com/namlinh1801/btl2_DB.git](https://github.com/huonglandoan/db-2)
+   git clone [https://github.com/huonglandoan/db-2]
    cd btl2_DB
    ```
 2. Cài đặt phụ thuộc cho backend và frontend:
