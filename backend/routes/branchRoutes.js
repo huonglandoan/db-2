@@ -6,7 +6,7 @@ const db = require('../dbConfig');
 function normalizeStatus(dbStatus) {
   if (!dbStatus) return "inactive";
   const s = String(dbStatus).toLowerCase();
-  return s === "active" ? "active" : "inactive";
+  return s === "hoạt động" ? "hoạt động" : "không hoạt động";
 }
 
 /* =========================
@@ -74,7 +74,7 @@ router.get('/', (req, res) => {
       address: r.Address,
       phone: r.Contact_number,
       manager: r.Manager_ID_number ?? "",
-      status: ['Active', 'Inactive'].includes(r.Branch_status) ? r.Branch_status.toLowerCase() : 'inactive',
+      status: ['hoạt động', 'không hoạt động'].includes(r.Branch_status) ? r.Branch_status.toLowerCase() : 'không hoạt động',
       opening_hour: r.Opening_hours
     }));
 

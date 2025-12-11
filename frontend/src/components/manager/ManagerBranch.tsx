@@ -12,16 +12,18 @@ export interface Branch {
   phone: string;
   manager_id: string;
   manager_name: string;
-  status: "active" | "inactive";
+  status: "hoạt động" | "không hoạt động";
   opening_hour: string;
 }
 
 
-function normalizeStatus(raw: any): "active" | "inactive" {
-  if (!raw) return "inactive";
+function normalizeStatus(raw: any): "hoạt động" | "không hoạt động" {
+  if (!raw) return "không hoạt động";
   const s = String(raw).toLowerCase().trim();
-  return s === "active" ? "active" : "inactive";
+
+  return s === "hoạt động" ? "hoạt động" : "không hoạt động";
 }
+
 
 // Load dữ liệu từ API và chuẩn hóa về Branch[]
 async function loadBranchesFromAPI(): Promise<Branch[]> {
@@ -122,7 +124,7 @@ export function ManagerBranch({ currentBranchId, onBranchChange }: BranchManagem
             )}
           </div>
 
-          {currentBranch?.status === "active" && (
+          {currentBranch?.status === "hoạt động" && (
             <Badge className="bg-primary text-primary-foreground">Đang hoạt động</Badge>
           )}
         </div>
@@ -187,7 +189,7 @@ export function ManagerBranch({ currentBranchId, onBranchChange }: BranchManagem
         </Card>
         <Card>
           <CardHeader><CardTitle>Đang hoạt động</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl text-primary">{branches.filter(b => b.status === "active").length}</p></CardContent>
+          <CardContent><p className="text-3xl text-primary">{branches.filter(b => b.status === "hoạt động").length}</p></CardContent>
         </Card>
        
       </div>
